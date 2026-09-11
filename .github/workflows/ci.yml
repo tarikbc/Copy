@@ -8,7 +8,32 @@ jobs:
   test:
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      # CopyCore/Package.resolved answers to two tools. `xcodebuild` writes all three
+      # pins into it, because CopyCore is the workspace's root package and the generated
+      # .xcodeproj is gitignored, so Xcode has nowhere else to keep them. `swift test
+      # --package-path CopyCore` resolves CopyCore on its own and rewrites the same file
+      # with GRDB alone. So running the tests before committing silently drops the
+      # Sparkle and KeyboardShortcuts pins, and the next release would resolve them to
+      # whatever `from:` allows: an unreviewed Sparkle in an app that updates itself.
+      # This runs before the tests, so it reads what was committed.
+      - name: Check the SPM pins survived
+        run: |
+          missing=0
+          for dep in grdb.swift keyboardshortcuts sparkle; do
+            jq -e --arg d "$dep" '.pins | map(.identity) | index($d)' \
+              CopyCore/Package.resolved >/dev/null 2>&1 || {
+              echo "::error file=CopyCore/Package.resolved::no pin for $dep"
+              missing=1
+            }
+          done
+          if [ "$missing" = 1 ]; then
+            echo "Restore them with: xcodegen generate && xcodebuild -project Copy.xcodeproj -scheme Copy -configuration Debug build"
+            echo "then commit CopyCore/Package.resolved again."
+            exit 1
+          fi
+          echo "grdb.swift, keyboardshortcuts and sparkle are all pinned."
+
       - name: Select latest Xcode
         run: |
           sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)/Contents/Developer"
