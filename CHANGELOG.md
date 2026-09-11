@@ -5,6 +5,22 @@ All notable changes to Copy are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2026-09-11
+
+The keyboard shortcuts you already expect, image files that look like images, and a quieter close.
+
+### Added
+
+- <kbd>⌘C</kbd> copies the selected cards to the clipboard and <kbd>⌘V</kbd> pastes them, while a bare <kbd>⌫</kbd> deletes the selected card. All three act on your whole selection, the way <kbd>⌘⌫</kbd> already did. The two clipboard shortcuts step aside whenever there is text in the search box, so you can still paste a search term in and copy one back out.
+- A card holding an image file previews as the picture when you press <kbd>Space</kbd>, instead of a generic document icon. The Image filter in search finds those cards now too, not only pictures you copied directly.
+- An optional sound when Copy records something new, under Settings, General. It is off unless you turn it on, and you can pick any of the sounds macOS already ships.
+
+### Fixed
+
+- Closing the shelf on macOS 26 no longer flashes for a frame. The app underneath gets focus back after the shelf is fully gone, so a paste lands where you meant it to.
+- Card timestamps no longer get cut short. The source app name gives way instead.
+- <kbd>⌘,</kbd> opens Settings. It used to open an empty window.
+
 ## [0.1.6] - 2026-08-15
 
 Favorites hold their place while you scroll back through history.
