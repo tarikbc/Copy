@@ -50,7 +50,38 @@ public struct PinboardStore {
 
     public func all() throws -> [Pinboard] {
         try writer.read { db in
-            try Pinboard.order(Column("sortIndex").asc).fetchAll(db)
+            try Self.fetchAll(db)
+        }
+    }
+
+    /// Moves one pinboard before or after another and persists the complete tab order.
+    /// History is not a database pinboard, so it can never enter this operation and
+    /// remains fixed at the front of the shelf.
+    @discardableResult
+    public func move(id: Int64, relativeTo targetID: Int64, placeAfterTarget: Bool) throws -> [Pinboard] {
+        try writer.write { db in
+            var ids = try Int64.fetchAll(db, sql: """
+                SELECT id FROM pinboard ORDER BY sortIndex ASC, id ASC
+                """)
+            guard id != targetID,
+                  let sourceIndex = ids.firstIndex(of: id),
+                  let targetIndex = ids.firstIndex(of: targetID) else {
+                return try Self.fetchAll(db)
+            }
+
+            ids.remove(at: sourceIndex)
+            var insertionIndex = targetIndex + (placeAfterTarget ? 1 : 0)
+            if sourceIndex < insertionIndex { insertionIndex -= 1 }
+            insertionIndex = min(max(0, insertionIndex), ids.count)
+            ids.insert(id, at: insertionIndex)
+
+            for (sortIndex, pinboardID) in ids.enumerated() {
+                try db.execute(
+                    sql: "UPDATE pinboard SET sortIndex = ? WHERE id = ?",
+                    arguments: [sortIndex, pinboardID]
+                )
+            }
+            return try Self.fetchAll(db)
         }
     }
 
@@ -93,7 +124,7 @@ public struct PinboardStore {
     public func observeAll(onError: @escaping (Error) -> Void,
                            onChange: @escaping ([Pinboard]) -> Void) -> ObservationToken {
         let observation = ValueObservation.tracking { db in
-            try Pinboard.order(Column("sortIndex").asc).fetchAll(db)
+            try Self.fetchAll(db)
         }
         return ObservationToken(observation.start(in: writer,
                                                   scheduling: .async(onQueue: .main),
@@ -119,5 +150,11 @@ public struct PinboardStore {
             ORDER BY pinboard_item.sortIndex DESC
             LIMIT ?
             """, arguments: [pinboardID, limit])
+    }
+
+    private static func fetchAll(_ db: Database) throws -> [Pinboard] {
+        try Pinboard
+            .order(Column("sortIndex").asc, Column("id").asc)
+            .fetchAll(db)
     }
 }

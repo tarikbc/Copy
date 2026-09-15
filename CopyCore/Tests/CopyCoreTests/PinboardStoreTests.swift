@@ -47,6 +47,34 @@ final class PinboardStoreTests: XCTestCase {
         XCTAssertEqual(try store.recentItems(limit: 10).count, 1)
     }
 
+    func testMovePinboardsBeforeAndAfterEachOther() throws {
+        let (_, pinboards) = try makeTempStores()
+        let a = try pinboards.create(name: "A", symbol: "pin")
+        let b = try pinboards.create(name: "B", symbol: "pin")
+        let c = try pinboards.create(name: "C", symbol: "pin")
+
+        try pinboards.move(id: a.id!, relativeTo: c.id!, placeAfterTarget: true)
+        XCTAssertEqual(try pinboards.all().map(\.name), ["B", "C", "A"])
+
+        try pinboards.move(id: c.id!, relativeTo: b.id!, placeAfterTarget: false)
+        XCTAssertEqual(try pinboards.all().map(\.name), ["C", "B", "A"])
+
+        try pinboards.move(id: b.id!, relativeTo: a.id!, placeAfterTarget: false)
+        XCTAssertEqual(try pinboards.all().map(\.name), ["C", "B", "A"],
+                       "dropping into the board's existing gap should be a no-op")
+    }
+
+    func testMoveIgnoresUnknownOrSamePinboardWithoutChangingOrder() throws {
+        let (_, pinboards) = try makeTempStores()
+        let a = try pinboards.create(name: "A", symbol: "pin")
+        _ = try pinboards.create(name: "B", symbol: "pin")
+
+        try pinboards.move(id: a.id!, relativeTo: a.id!, placeAfterTarget: true)
+        try pinboards.move(id: 9_999, relativeTo: a.id!, placeAfterTarget: false)
+
+        XCTAssertEqual(try pinboards.all().map(\.name), ["A", "B"])
+    }
+
     func testClearHistorySparesPinboardMembers() throws {
         let (store, pinboards) = try makeTempStores()
         let board = try pinboards.create(name: "Keep", symbol: "pin")
