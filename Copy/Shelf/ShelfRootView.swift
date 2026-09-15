@@ -55,7 +55,14 @@ struct ShelfRootView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glassSurface(corners: .top(12))
+        .glassSurface(corners: viewModel.settings.floatingShelf ? .all(12) : .top(12))
+        .clipShape(UnevenRoundedRectangle(
+            topLeadingRadius: 12,
+            bottomLeadingRadius: viewModel.settings.floatingShelf ? 12 : 0,
+            bottomTrailingRadius: viewModel.settings.floatingShelf ? 12 : 0,
+            topTrailingRadius: 12,
+            style: .continuous
+        ))
         // Card → pinboard filing is handled here, at the shelf root, because a per-tab
         // `.onDrop` never establishes a working drop region on the small pills inside this
         // borderless non-activating glass panel (a shelf-level drop, by contrast, fires

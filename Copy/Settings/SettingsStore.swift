@@ -101,6 +101,7 @@ final class SettingsStore {
     static let excludedBundleIDsKey = "excludedBundleIDs"
     static let hideDuringScreenSharingKey = "hideDuringScreenSharing"
     static let favoritesEnabledKey = "favoritesEnabled"
+    static let floatingShelfKey = "floatingShelf"
     static let compactShelfKey = "compactShelf"
     static let shelfThemeKey = "shelfTheme"
     static let shelfProDarkKey = "shelfProDark"
@@ -162,6 +163,18 @@ final class SettingsStore {
             onCompactShelfChange?(compactShelf)
         }
     }
+
+    /// Whether the shelf floats clear of the screen edge instead of sitting flush against
+    /// it. Off by default, so the shelf stays edge attached. `onFloatingShelfChange` pushes
+    /// it to the panel controller, which re-frames the window live.
+    var floatingShelf: Bool {
+        didSet {
+            guard floatingShelf != oldValue else { return }
+            defaults.set(floatingShelf, forKey: Self.floatingShelfKey)
+            onFloatingShelfChange?(floatingShelf)
+        }
+    }
+    @ObservationIgnored var onFloatingShelfChange: ((Bool) -> Void)?
 
     /// Hides favorites presentation without deleting saved marks or retention protection.
     var favoritesEnabled: Bool {
@@ -258,6 +271,7 @@ final class SettingsStore {
         recognizeImageText = (defaults.object(forKey: Self.recognizeImageTextKey) as? Bool) ?? true
         hideDuringScreenSharing = (defaults.object(forKey: Self.hideDuringScreenSharingKey) as? Bool) ?? false
         favoritesEnabled = (defaults.object(forKey: Self.favoritesEnabledKey) as? Bool) ?? true
+        floatingShelf = (defaults.object(forKey: Self.floatingShelfKey) as? Bool) ?? false
         compactShelf = (defaults.object(forKey: Self.compactShelfKey) as? Bool) ?? false
         if let raw = defaults.string(forKey: Self.shelfThemeKey), let saved = ShelfTheme(rawValue: raw) {
             shelfTheme = saved

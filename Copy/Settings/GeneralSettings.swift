@@ -34,6 +34,18 @@ struct GeneralSettings: View {
             }
 
             Section {
+                Picker("Shelf Style", selection: $settings.floatingShelf) {
+                    Text("Edge Attached").tag(false)
+                    Text("Floating").tag(true)
+                }
+                .pickerStyle(.segmented)
+            } footer: {
+                Text("Floating adds space around the shelf and rounds every corner.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 Toggle("Enable Favorites", isOn: $settings.favoritesEnabled)
             } footer: {
                 Text("Show favorite actions and keep favorites at the front of history. Turning this off preserves saved favorites and their protection from automatic cleanup.")
