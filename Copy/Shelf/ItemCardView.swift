@@ -13,6 +13,7 @@ struct ItemCardView: View {
     let currentPinboardID: Int64?
     /// Compact shelf mode (`SettingsStore.compactShelf`, threaded from `ShelfRootView`):
     /// smaller card frame + tighter line limits so more cards fit on screen at once.
+    var favoritesEnabled: Bool = true
     var compact: Bool = false
     /// The active search text, used to show and highlight the matched OCR snippet under
     /// an image result. Empty when not searching.
@@ -163,7 +164,7 @@ struct ItemCardView: View {
             // floating pill so they're discoverable without opening the context menu.
             // Otherwise, just the quiet favorite indicator when the card is favorited.
             if isHovering && !isInlineRenaming {
-                CardHoverActions(isFavorite: item.isFavorite,
+                CardHoverActions(favoritesEnabled: favoritesEnabled, isFavorite: item.isFavorite,
                                  onToggleFavorite: onToggleFavorite,
                                  // Only offer unpin while viewing a pinboard, where the card
                                  // actually belongs to one it can be removed from.
@@ -171,7 +172,7 @@ struct ItemCardView: View {
                                  onDelete: onDelete)
                     .padding(5)
                     .transition(.opacity)
-            } else if item.isFavorite {
+            } else if favoritesEnabled && item.isFavorite {
                 Image(systemName: "star.fill")
                     .font(.system(size: 9))
                     .foregroundStyle(.yellow)
@@ -227,7 +228,9 @@ struct ItemCardView: View {
                 Button("Adjust Color…", action: onAdjustColor)
             }
             Button("Rename…", action: onBeginInlineRename)
-            Button(item.isFavorite ? "Unfavorite" : "Favorite", action: onToggleFavorite)
+            if favoritesEnabled {
+                Button(item.isFavorite ? "Unfavorite" : "Favorite", action: onToggleFavorite)
+            }
             Menu("Add to Pinboard") {
                 if pinboards.isEmpty {
                     Text("No Pinboards")
@@ -657,6 +660,7 @@ private struct CardClickGesture: ViewModifier {
 /// in the right-click menu, plus unpin while viewing a pinboard. Stays a quiet affordance
 /// rather than a toolbar; the rest remains in the context menu and via drag.
 private struct CardHoverActions: View {
+    let favoritesEnabled: Bool
     let isFavorite: Bool
     let onToggleFavorite: () -> Void
     /// Removes the card from the pinboard currently being viewed. `nil` (and so hidden)
@@ -666,11 +670,13 @@ private struct CardHoverActions: View {
 
     var body: some View {
         HStack(spacing: 1) {
+            if favoritesEnabled {
             IconButton(systemName: isFavorite ? "star.fill" : "star",
                        fontSize: 11, size: CGSize(width: 22, height: 22),
                        tint: isFavorite ? .yellow : .secondary,
                        help: isFavorite ? "Remove from favorites" : "Favorite",
                        action: onToggleFavorite)
+            }
             if let onUnpin {
                 IconButton(systemName: "pin.slash",
                            fontSize: 11, size: CGSize(width: 22, height: 22),

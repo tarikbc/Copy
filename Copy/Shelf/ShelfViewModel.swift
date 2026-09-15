@@ -185,6 +185,12 @@ final class ShelfViewModel {
 
     /// Restarts the query after the search, tab, or facets changed. A new query starts back
     /// at the first page, so the window never carries over from the previous one.
+    func favoritesSettingChanged() {
+        if !settings.favoritesEnabled { searchQuery.remove(.favorites) }
+        recomputeSuggestions()
+        refresh()
+    }
+
     func refresh() {
         page.reset()
         previewShown = false
@@ -211,7 +217,7 @@ final class ShelfViewModel {
         if filter.hasText {
             // Text search is one-shot (FTS); re-runs whenever the query changes.
             isPaged = true
-            apply((try? store.search(filter: filter, limit: page.limit)) ?? [])
+            apply((try? store.search(filter: filter, limit: page.limit, favoritesFirst: settings.favoritesEnabled)) ?? [])
         } else if searchQuery.tokens.isEmpty, case .pinboard(let id) = tab {
             // Plain pinboard browse: keep the dedicated observation (preserves manual order).
             isPaged = false
@@ -221,7 +227,7 @@ final class ShelfViewModel {
         } else {
             // History browse or facet-only: stays live as new items are captured.
             isPaged = true
-            token = store.observeRecent(filter: filter, limit: page.limit,
+            token = store.observeRecent(filter: filter, limit: page.limit, favoritesFirst: settings.favoritesEnabled,
                                         onError: { NSLog("Copy: observation failed: \($0)") },
                                         onChange: { [weak self] in self?.apply($0) })
         }
@@ -260,6 +266,7 @@ final class ShelfViewModel {
 
     /// Commits a suggestion as a pill, clearing the typed prefix.
     func acceptSuggestion(_ suggestion: Suggestion) {
+        guard settings.favoritesEnabled || suggestion.token != .favorites else { return }
         searchQuery.add(suggestion.token)
         searchQuery.text = ""
         suggestions = []
@@ -330,7 +337,8 @@ final class ShelfViewModel {
             cachedApps = (try? store.distinctApps()) ?? []
         }
         suggestions = searchSuggestions(prefix: searchQuery.text, apps: cachedApps,
-                                        pinboards: pinboards, query: searchQuery)
+                                        pinboards: pinboards, query: searchQuery,
+                                        includeFavorites: settings.favoritesEnabled)
         highlightedSuggestion = 0
     }
 
@@ -523,6 +531,7 @@ final class ShelfViewModel {
     }
 
     func toggleFavoritePrimary() {
+        guard settings.favoritesEnabled else { return }
         guard let item = primaryItem, let id = item.id else { return }
         do {
             try store.setFavorite(itemID: id, !item.isFavorite)
@@ -580,6 +589,7 @@ final class ShelfViewModel {
     }
 
     func toggleFavorite(_ item: ClipItem) {
+        guard settings.favoritesEnabled else { return }
         guard let id = item.id else { return }
         do {
             try store.setFavorite(itemID: id, !item.isFavorite)
@@ -883,8 +893,8 @@ final class ShelfViewModel {
         // draws a divider at the boundary (`favoritesCount`).
         let favorites = new.filter(\.isFavorite)
         let rest = new.filter { !$0.isFavorite }
-        items = favorites + rest
-        favoritesCount = favorites.count
+        items = settings.favoritesEnabled ? favorites + rest : new
+        favoritesCount = settings.favoritesEnabled ? favorites.count : 0
         let order = items.map(\.uuid)
         selection.prune(existing: Set(order), order: order)
         if let jump = pendingJumpItemID {

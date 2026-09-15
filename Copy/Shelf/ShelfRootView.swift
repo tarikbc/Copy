@@ -499,6 +499,7 @@ private struct ShelfItemsRow: View {
                                 store: viewModel.store,
                                 pinboards: viewModel.pinboards,
                                 currentPinboardID: currentPinboardID,
+                                favoritesEnabled: viewModel.settings.favoritesEnabled,
                                 compact: compact,
                                 searchQuery: viewModel.searchQuery.text,
                                 isFlashing: viewModel.flashItemID == item.uuid,

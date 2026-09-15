@@ -219,7 +219,7 @@ public func searchSuggestions(prefix rawPrefix: String,
                               apps: [AppUsage],
                               pinboards: [Pinboard],
                               query: SearchQuery,
-                              limit: Int = 6) -> [Suggestion] {
+                              limit: Int = 6, includeFavorites: Bool = true) -> [Suggestion] {
     let prefix = rawPrefix.trimmingCharacters(in: .whitespaces).lowercased()
     guard !prefix.isEmpty else { return [] }
 
@@ -232,7 +232,7 @@ public func searchSuggestions(prefix rawPrefix: String,
     for type in SearchType.allCases where matchesPrefix(type.label, prefix) && !query.tokens.contains(.type(type)) {
         out.append(.type(type))
     }
-    if matchesPrefix("Favorites", prefix) && !hasFavorites {
+    if includeFavorites && matchesPrefix("Favorites", prefix) && !hasFavorites {
         out.append(.favorites)
     }
     for pinboard in pinboards {
