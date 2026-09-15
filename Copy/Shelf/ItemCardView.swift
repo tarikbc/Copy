@@ -444,36 +444,21 @@ struct ItemCardView: View {
         case .text, .richText:
             textBody
         case .link:
-            if let linkTitle = item.linkTitle {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
-                        LinkFaviconView(item: item, store: store)
-                        Text(URL(string: item.plainText ?? "")?.host ?? "Link")
-                            .font(Tokens.cardSubtitle)
-                            .lineLimit(1)
-                    }
-                    Text(linkTitle)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 5) {
+                    LinkFaviconView(item: item, store: store)
+                    Text(item.linkTitle ?? URL(string: item.plainText ?? "")?.host ?? "Link")
                         .font(.system(size: 13, weight: .semibold))
                         .lineLimit(bodyLineLimit(standard: 2, compact: 1))
                         .multilineTextAlignment(.leading)
-                    Text(String((item.plainText ?? "").prefix(1_500)))
-                        .font(Tokens.bodyMono)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(bodyLineLimit(standard: 2, compact: 1))
                 }
-            } else {
-                VStack(alignment: .leading, spacing: 4) {
-                    Image(systemName: "link")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                    Text(URL(string: item.plainText ?? "")?.host ?? "Link")
-                        .font(Tokens.cardSubtitle)
-                        .lineLimit(1)
-                    Text(String((item.plainText ?? "").prefix(1_500)))
-                        .font(Tokens.bodyMono)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(bodyLineLimit(standard: 5, compact: 3))
-                }
+                // Give the URL the remaining body lines while keeping the footer visible.
+                Text(String((item.plainText ?? "").prefix(1_500)))
+                    .font(Tokens.bodyMono)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(bodyLineLimit(standard: 8, compact: 3))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
             }
         case .image:
             imageBody
@@ -550,12 +535,20 @@ struct LinkFaviconView: View {
             }
         }
         .frame(width: 16, height: 16)
-        .onAppear {
-            if image == nil {
-                image = FaviconCache.shared.cached(for: item)
-                if image == nil {
-                    FaviconCache.shared.favicon(for: item, store: store) { image = $0 }
-                }
+        .onAppear(perform: loadImage)
+        // Metadata persistence updates the item title after writing its favicon. The
+        // view may already be mounted by then, so `onAppear` alone would leave its
+        // earlier nil lookup stuck until the app relaunched.
+        .onChange(of: item.linkTitle) { _, _ in loadImage() }
+    }
+
+    private func loadImage() {
+        guard image == nil else { return }
+        image = FaviconCache.shared.cached(for: item)
+        if image == nil {
+            FaviconCache.shared.favicon(for: item, store: store) { loaded in
+                // An older miss must not overwrite a newer successful lookup.
+                if let loaded { image = loaded }
             }
         }
     }

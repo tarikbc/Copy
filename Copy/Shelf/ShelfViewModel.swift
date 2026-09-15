@@ -27,6 +27,7 @@ final class ShelfViewModel {
     /// `viewModel.settings.compactShelf` re-renders on toggle without any extra
     /// change-hook plumbing (the pattern `AppCoordinator` uses for AppKit-side settings
     /// like `hideDuringScreenSharing` doesn't apply here since this is pure SwiftUI).
+    private let linkFetcher: LinkMetadataFetcher
     let settings: SettingsStore
 
     var items: [ClipItem] = []
@@ -159,10 +160,11 @@ final class ShelfViewModel {
     /// every item on the board, so there's nothing to page there.
     @ObservationIgnored private var isPaged = true
 
-    init(store: ItemStore, pinboardStore: PinboardStore, settings: SettingsStore) {
+    init(store: ItemStore, pinboardStore: PinboardStore, settings: SettingsStore, linkFetcher: LinkMetadataFetcher) {
         self.store = store
         self.pinboardStore = pinboardStore
         self.settings = settings
+        self.linkFetcher = linkFetcher
         pinboardsToken = pinboardStore.observeAll(
             onError: { NSLog("Copy: pinboard observation failed: \($0)") },
             onChange: { [weak self] in self?.pinboards = $0 })
@@ -172,6 +174,10 @@ final class ShelfViewModel {
     var primaryItem: ClipItem? {
         guard let uuid = selection.primary else { return nil }
         return items.first(where: { $0.uuid == uuid })
+    }
+
+    func fetchLinkPreviewIfNeeded(for item: ClipItem) {
+        linkFetcher.fetchIfNeeded(for: item, enabled: settings.fetchLinkPreviews)
     }
 
     func isSelected(_ item: ClipItem) -> Bool {

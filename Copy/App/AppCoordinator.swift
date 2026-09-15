@@ -21,8 +21,8 @@ final class AppCoordinator {
     let isDemoMode: Bool
     /// `UserDefaults` key the status-menu toggle flips; read at launch to enter demo mode.
     static let demoModeKey = "demoMode"
-    private(set) lazy var shelfViewModel = ShelfViewModel(store: store, pinboardStore: pinboardStore, settings: settings)
-    private(set) lazy var linkFetcher = LinkMetadataFetcher(store: store)
+    private(set) lazy var shelfViewModel = ShelfViewModel(store: store, pinboardStore: pinboardStore, settings: settings, linkFetcher: linkFetcher)
+    private(set) var linkFetcher: LinkMetadataFetcher
     private(set) lazy var ocrController = OCRController(store: store)
     private(set) lazy var archiveController = ArchiveController(store: store, pinboardStore: pinboardStore)
 
