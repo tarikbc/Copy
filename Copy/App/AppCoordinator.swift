@@ -52,6 +52,7 @@ final class AppCoordinator {
         let controller = ShelfPanelController(
             hideDuringScreenSharing: settings.hideDuringScreenSharing,
             compactShelf: settings.compactShelf,
+            floatingShelf: settings.floatingShelf,
             proDark: settings.shelfProDark) { [weak self] in
             guard let self else { return NSView() }
             return NSHostingView(rootView: ShelfRootView(viewModel: self.shelfViewModel))
@@ -420,6 +421,9 @@ final class AppCoordinator {
         settings.onHideDuringScreenSharingChange = { [weak self] hide in
             self?.shelfController.setHideDuringScreenSharing(hide)
             self?.pasteStackController.setHideDuringScreenSharing(hide)
+        }
+        settings.onFloatingShelfChange = { [weak self] floating in
+            self?.shelfController.setFloatingShelf(floating)
         }
         settings.onCompactShelfChange = { [weak self] compact in
             self?.shelfController.setCompactShelf(compact)

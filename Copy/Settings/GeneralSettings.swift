@@ -34,6 +34,18 @@ struct GeneralSettings: View {
             }
 
             Section {
+                Picker("Shelf Style", selection: $settings.floatingShelf) {
+                    Text("Edge Attached").tag(false)
+                    Text("Floating").tag(true)
+                }
+                .pickerStyle(.segmented)
+            } footer: {
+                Text("Floating adds space around the shelf and rounds every corner.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 Toggle("Always Use Dark Shelf", isOn: $settings.shelfProDark)
             } footer: {
                 Text("Keeps the shelf and Paste Stack dark with a blue accent, even in Light Mode. Off by default, so they follow your system appearance.")

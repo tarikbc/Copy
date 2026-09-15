@@ -1,4 +1,5 @@
 import AppKit
+import CopyCore
 
 final class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
@@ -14,6 +15,35 @@ final class KeyablePanel: NSPanel {
     override func addChildWindow(_ childWin: NSWindow, ordered place: NSWindow.OrderingMode) {
         childWin.sharingType = childWindowSharingType
         super.addChildWindow(childWin, ordered: place)
+    }
+}
+
+/// Keeps the shelf's contents inside the panel while they slide. This matters when the
+/// shelf lives on a display with another display below it: moving the window itself past
+/// the upper display's edge makes it visible on the lower one, while moving this child
+/// view is clipped to the stationary window.
+private final class ShelfClippingView: NSView {
+    let shelfContent: NSView
+
+    init(content: NSView) {
+        shelfContent = content
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        addSubview(content)
+        content.autoresizingMask = [.width, .height]
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layout() {
+        super.layout()
+        var contentFrame = shelfContent.frame
+        contentFrame.size = bounds.size
+        shelfContent.frame = contentFrame
     }
 }
 
@@ -51,12 +81,14 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
     /// handler doesn't order the panel out after a newer show/hide has superseded it.
     private var closeToken = 0
     private var hideDuringScreenSharing: Bool
+    private var floatingShelf: Bool
     private var compactShelf: Bool
     private var proDark: Bool
 
-    init(hideDuringScreenSharing: Bool, compactShelf: Bool, proDark: Bool, makeContent: @escaping () -> NSView) {
+    init(hideDuringScreenSharing: Bool, compactShelf: Bool, floatingShelf: Bool, proDark: Bool, makeContent: @escaping () -> NSView) {
         self.hideDuringScreenSharing = hideDuringScreenSharing
         self.compactShelf = compactShelf
+        self.floatingShelf = floatingShelf
         self.proDark = proDark
         self.makeContent = makeContent
     }
@@ -93,11 +125,16 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
               let screen = NSScreen.screens.first(where: {
                   NSMouseInRect(NSEvent.mouseLocation, $0.frame, false)
               }) ?? NSScreen.main else { return }
-        let frame = NSRect(x: screen.visibleFrame.minX,
-                           y: screen.visibleFrame.minY,
-                           width: screen.visibleFrame.width,
-                           height: currentShelfHeight)
+        let frame = ShelfLayout.frame(visibleFrame: screen.visibleFrame, height: currentShelfHeight, floating: floatingShelf)
         panel.setFrame(frame, display: true)
+    }
+
+    func setFloatingShelf(_ floating: Bool) {
+        floatingShelf = floating
+        guard let panel, panel.isVisible, !isHiding, let screen = panel.screen else { return }
+        setShelfContentOffset(0, in: panel)
+        panel.setFrame(ShelfLayout.frame(visibleFrame: screen.visibleFrame,
+                                        height: currentShelfHeight, floating: floating), display: true)
     }
 
     var isVisible: Bool { panel?.isVisible ?? false }
@@ -112,10 +149,7 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
             NSMouseInRect(NSEvent.mouseLocation, $0.frame, false)
         }) ?? NSScreen.main else { return }
 
-        let frame = NSRect(x: screen.visibleFrame.minX,
-                           y: screen.visibleFrame.minY,
-                           width: screen.visibleFrame.width,
-                           height: currentShelfHeight)
+        let frame = ShelfLayout.frame(visibleFrame: screen.visibleFrame, height: currentShelfHeight, floating: floatingShelf)
         let panel = self.panel ?? makePanel()
         self.panel = panel
 
@@ -131,15 +165,32 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
         pendingHideCompletions.removeAll()
 
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-        panel.setFrame(reduceMotion ? frame : frame.offsetBy(dx: 0, dy: -24), display: false)
-        panel.alphaValue = 0
-        panel.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.22
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.animator().alphaValue = 1
-            panel.animator().setFrame(frame, display: true)
+        setShelfContentOffset(0, in: panel)
+        if floatingShelf {
+            // Keep the window on its display: only its clipped content slides, so it
+            // cannot leak onto another monitor placed below this one.
+            panel.setFrame(frame, display: false)
+            panel.alphaValue = 1
+            setShelfContentOffset(reduceMotion ? 0 : -frame.height, in: panel)
+            panel.makeKeyAndOrderFront(nil)
+            if !reduceMotion {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.13
+                    context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                    shelfContentView(in: panel)?.animator().setFrameOrigin(.zero)
+                }
+            }
+        } else {
+            panel.setFrame(reduceMotion ? frame : frame.offsetBy(dx: 0, dy: -24), display: false)
+            panel.alphaValue = 0
+            panel.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = reduceMotion ? 0 : 0.22
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                panel.animator().alphaValue = 1
+                panel.animator().setFrame(frame, display: true)
+            }
         }
         installKeyMonitor()
         // The shelf opens in browse mode: keep the search field from auto-becoming first
@@ -177,10 +228,14 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
         closeToken += 1
         let token = closeToken
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.18
+            context.duration = floatingShelf ? 0.13 : 0.18
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            panel.animator().alphaValue = 0
-            panel.animator().setFrame(panel.frame.offsetBy(dx: 0, dy: -18), display: true)
+            if floatingShelf {
+                shelfContentView(in: panel)?.animator().setFrameOrigin(NSPoint(x: 0, y: -panel.frame.height))
+            } else {
+                panel.animator().alphaValue = 0
+                panel.animator().setFrame(panel.frame.offsetBy(dx: 0, dy: -18), display: true)
+            }
         } completionHandler: { [weak self] in
             // NSAnimationContext runs its completion on the main thread; the closure's
             // `@Sendable` type just can't see that statically.
@@ -197,6 +252,7 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
     /// still fading out.
     private func finishHide(_ panel: KeyablePanel, restoreFocus: Bool) {
         panel.orderOut(nil)
+        setShelfContentOffset(0, in: panel)
         // Leave alpha at zero while hidden. Resetting it to one in the same run-loop
         // turn as `orderOut` can race WindowServer and briefly re-show the fully opaque
         // surface. `show()` always establishes its own alpha-zero starting state.
@@ -212,6 +268,14 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
 
     // MARK: - Private
 
+    private func shelfContentView(in panel: KeyablePanel) -> NSView? {
+        (panel.contentView as? ShelfClippingView)?.shelfContent
+    }
+
+    private func setShelfContentOffset(_ offset: CGFloat, in panel: KeyablePanel) {
+        shelfContentView(in: panel)?.setFrameOrigin(NSPoint(x: 0, y: offset))
+    }
+
     private func makePanel() -> KeyablePanel {
         let panel = KeyablePanel(contentRect: .zero,
                                  styleMask: [.borderless, .nonactivatingPanel],
@@ -225,7 +289,7 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
         panel.becomesKeyOnlyIfNeeded = false
         panel.isFloatingPanel = true
         panel.delegate = self
-        panel.contentView = makeContent()
+        panel.contentView = ShelfClippingView(content: makeContent())
         panel.sharingType = hideDuringScreenSharing ? .none : .readOnly
         panel.childWindowSharingType = hideDuringScreenSharing ? .none : .readOnly
         return panel
