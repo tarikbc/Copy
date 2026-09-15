@@ -33,9 +33,11 @@ struct PreviewPane: View {
 
         guard displayText.count > highlightPortion.count else {
             return highlightedText(highlightPortion, tokens: highlight.tokens)
+                .font(.system(size: 13, design: .monospaced))
         }
         let remainder = String(displayText.dropFirst(highlightPortion.count))
-        return highlightedText(highlightPortion, tokens: highlight.tokens) + Text(remainder)
+        return (highlightedText(highlightPortion, tokens: highlight.tokens) + Text(remainder))
+            .font(.system(size: 13, design: .monospaced))
     }
 
     var body: some View {
@@ -49,7 +51,7 @@ struct PreviewPane: View {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(Tokens.color(fromHex: item.plainText ?? ""))
                     Text(item.plainText ?? "")
-                        .font(.system(size: 15, design: .monospaced))
+                        .font(.system(size: 15))
                 }
                 .padding(16)
             case .file:
@@ -57,7 +59,7 @@ struct PreviewPane: View {
             default:
                 ScrollView {
                     codeAwarePreviewText(item.plainText ?? "")
-                        .font(.system(size: 13, design: .monospaced))
+                        .font(.system(size: 13))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                         .padding(14)
@@ -174,7 +176,7 @@ private struct FileCardPreview: View {
                 .resizable()
                 .frame(width: 64, height: 64)
             Text(item.plainText ?? "File")
-                .font(.system(size: 13, design: .monospaced))
+                .font(.system(size: 13))
                 .multilineTextAlignment(.center)
                 .lineLimit(4)
             if !urls.isEmpty {

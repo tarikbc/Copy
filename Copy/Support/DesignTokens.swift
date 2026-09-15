@@ -24,6 +24,8 @@ enum Tokens {
     static func cardGap(compact: Bool) -> CGFloat { compact ? compactCardGap : cardGap }
     static func shelfPadding(compact: Bool) -> CGFloat { compact ? compactShelfPadding : shelfPadding }
 
+    /// Regular clipboard prose uses the native system face; code keeps monospace.
+    static let cardBody = Font.system(size: 12)
     static let bodyMono = Font.system(size: 11, design: .monospaced)
     static let caption = Font.system(size: 10, weight: .medium)
     static let cardTitle = Font.system(size: 11, weight: .semibold)
