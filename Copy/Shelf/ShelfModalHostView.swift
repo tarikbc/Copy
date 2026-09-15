@@ -17,7 +17,7 @@ struct ShelfModalHostView: View {
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .tint(viewModel.settings.shelfProDark ? Tokens.electricBlue : nil)
+        .tint(viewModel.settings.shelfTheme == .dark ? Tokens.electricBlue : nil)
     }
 
     @ViewBuilder
