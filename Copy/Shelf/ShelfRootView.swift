@@ -76,7 +76,7 @@ struct ShelfRootView: View {
         // Pro-dark: force the marketing electric-blue accent regardless of the system
         // accent color. The forced dark appearance itself is set on the panel window in
         // `ShelfPanelController`, which cascades to this hosted content.
-        .tint(viewModel.settings.shelfProDark ? Tokens.electricBlue : nil)
+        .tint(viewModel.settings.shelfTheme == .dark ? Tokens.electricBlue : nil)
         // Edit/Create/Adjust Color/Tips are shown as a centered child window over the
         // shelf (see `ShelfModalHostView`), not as attached sheets that overflow off the
         // bottom of the screen. This view is always on screen while the shelf is open, so

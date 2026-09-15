@@ -34,9 +34,12 @@ struct GeneralSettings: View {
             }
 
             Section {
-                Toggle("Always Use Dark Shelf", isOn: $settings.shelfProDark)
+                Picker("Appearance", selection: $settings.shelfTheme) {
+                    ForEach(ShelfTheme.allCases) { theme in Text(theme.title).tag(theme) }
+                }
+                .pickerStyle(.segmented)
             } footer: {
-                Text("Keeps the shelf and Paste Stack dark with a blue accent, even in Light Mode. Off by default, so they follow your system appearance.")
+                Text("Applies to the shelf, Paste Stack and Settings. Follow System uses your macOS appearance.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

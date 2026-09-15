@@ -52,21 +52,20 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
     private var closeToken = 0
     private var hideDuringScreenSharing: Bool
     private var compactShelf: Bool
-    private var proDark: Bool
+    private var theme: ShelfTheme
 
-    init(hideDuringScreenSharing: Bool, compactShelf: Bool, proDark: Bool, makeContent: @escaping () -> NSView) {
+    init(hideDuringScreenSharing: Bool, compactShelf: Bool, theme: ShelfTheme, makeContent: @escaping () -> NSView) {
         self.hideDuringScreenSharing = hideDuringScreenSharing
         self.compactShelf = compactShelf
-        self.proDark = proDark
+        self.theme = theme
         self.makeContent = makeContent
     }
 
-    /// Pushed live by `AppCoordinator` via `SettingsStore.onShelfProDarkChange`. Forces
-    /// the panel (and its hosted SwiftUI content) to a dark appearance so the whole shelf
-    /// matches the marketing "pro dark" look; `nil` returns to following the system.
-    func setProDark(_ on: Bool) {
-        proDark = on
-        panel?.appearance = on ? NSAppearance(named: .darkAqua) : nil
+    /// Updates existing shelf and modal windows; nil appearance follows macOS.
+    func setTheme(_ theme: ShelfTheme) {
+        self.theme = theme
+        panel?.appearance = theme.appearance
+        modalPanel?.appearance = theme.appearance
     }
 
     private var currentShelfHeight: CGFloat {
@@ -220,7 +219,7 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.appearance = proDark ? NSAppearance(named: .darkAqua) : nil
+        panel.appearance = theme.appearance
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = false
         panel.isFloatingPanel = true
@@ -318,6 +317,7 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
         host.isOpaque = false
         host.backgroundColor = .clear
         host.hasShadow = false
+        host.appearance = theme.appearance
         host.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         host.hidesOnDeactivate = false
         host.sharingType = hideDuringScreenSharing ? .none : .readOnly

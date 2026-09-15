@@ -35,7 +35,7 @@ final class AppCoordinator {
     private lazy var pasteStackController = PasteStackController(
         model: pasteStackModel,
         hideDuringScreenSharing: settings.hideDuringScreenSharing,
-        proDark: settings.shelfProDark)
+        theme: settings.shelfTheme)
     private lazy var pasteStackEngine = PasteStackEngine(onIntercept: { [weak self] in
         self?.pasteNextViaEngine()
     })
@@ -52,7 +52,7 @@ final class AppCoordinator {
         let controller = ShelfPanelController(
             hideDuringScreenSharing: settings.hideDuringScreenSharing,
             compactShelf: settings.compactShelf,
-            proDark: settings.shelfProDark) { [weak self] in
+            theme: settings.shelfTheme) { [weak self] in
             guard let self else { return NSView() }
             return NSHostingView(rootView: ShelfRootView(viewModel: self.shelfViewModel))
         }
@@ -424,9 +424,10 @@ final class AppCoordinator {
         settings.onCompactShelfChange = { [weak self] compact in
             self?.shelfController.setCompactShelf(compact)
         }
-        settings.onShelfProDarkChange = { [weak self] proDark in
-            self?.shelfController.setProDark(proDark)
-            self?.pasteStackController.setProDark(proDark)
+        settings.onShelfThemeChange = { [weak self] theme in
+            self?.shelfController.setTheme(theme)
+            self?.pasteStackController.setTheme(theme)
+            self?.settingsWindowController.setTheme(theme)
         }
         settings.onShowOnboarding = { [weak self] in
             self?.showOnboarding()

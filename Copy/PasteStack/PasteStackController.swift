@@ -23,26 +23,21 @@ final class PasteStackController {
     // same split the shelf uses (`ShelfPanelController.presentModal`).
     private var modalPanel: KeyablePanel?
     private var hideDuringScreenSharing: Bool
-    private var proDark: Bool
+    private var theme: ShelfTheme
 
-    init(model: PasteStackModel, hideDuringScreenSharing: Bool, proDark: Bool) {
+    init(model: PasteStackModel, hideDuringScreenSharing: Bool, theme: ShelfTheme) {
         self.model = model
         self.hideDuringScreenSharing = hideDuringScreenSharing
-        self.proDark = proDark
+        self.theme = theme
     }
 
-    /// Pushed live by `AppCoordinator` via `SettingsStore.onShelfProDarkChange`. Forces
-    /// the palette (and its hosted SwiftUI content) to a dark appearance so it matches
-    /// the pro-dark shelf; `nil` returns to following the system, mirroring
-    /// `ShelfPanelController.setProDark`. The accent tint is baked into the hosted view at
-    /// `makePanel` time, so when the (cached) palette isn't on screen we drop it and let
-    /// the next `show()` rebuild it with both the appearance and the tint from the new
-    /// value; when it is on screen we can only update the window appearance live (the tint
-    /// refreshes on its next open).
-    func setProDark(_ on: Bool) {
-        proDark = on
+    /// Updates the palette and any open editor. Cached hidden palettes rebuild their
+    /// content on next open, preserving the existing accent-refresh behavior.
+    func setTheme(_ theme: ShelfTheme) {
+        self.theme = theme
+        modalPanel?.appearance = theme.appearance
         if let panel, panel.isVisible {
-            panel.appearance = on ? NSAppearance(named: .darkAqua) : nil
+            panel.appearance = theme.appearance
         } else {
             panel?.orderOut(nil)
             panel = nil
@@ -154,7 +149,7 @@ final class PasteStackController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.appearance = proDark ? NSAppearance(named: .darkAqua) : nil
+        panel.appearance = theme.appearance
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
         panel.isFloatingPanel = true
@@ -182,7 +177,7 @@ final class PasteStackController {
                 DispatchQueue.main.async { self?.resizeToFit() }
             }
         )
-        .tint(proDark ? Tokens.electricBlue : nil))
+        .tint(theme == .dark ? Tokens.electricBlue : nil))
         hosting.translatesAutoresizingMaskIntoConstraints = false
 
         // The material view (a real NSView) makes every pixel non-transparent, so the
@@ -231,7 +226,7 @@ final class PasteStackController {
         host.contentView = NSHostingView(rootView: PasteStackEditorHost(
             item: item,
             store: model.store,
-            proDark: proDark,
+            theme: theme,
             onCancel: { [weak self] in self?.dismissEditor() },
             onSave: { [weak self] attributed in
                 self?.model.commitEdit(attributed, for: item)
@@ -267,7 +262,7 @@ final class PasteStackController {
         host.hasShadow = false
         host.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         host.hidesOnDeactivate = false
-        host.appearance = proDark ? NSAppearance(named: .darkAqua) : nil
+        host.appearance = theme.appearance
         host.sharingType = hideDuringScreenSharing ? .none : .readOnly
         modalPanel = host
         return host

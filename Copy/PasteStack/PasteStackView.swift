@@ -292,7 +292,7 @@ private struct PasteStackRow: View {
 struct PasteStackEditorHost: View {
     let item: ClipItem
     let store: ItemStore
-    var proDark: Bool
+    var theme: ShelfTheme
     let onCancel: () -> Void
     let onSave: (NSAttributedString) -> Void
 
@@ -303,6 +303,6 @@ struct PasteStackEditorHost: View {
             EditItemSheet(item: item, store: store, onCancel: onCancel, onSave: onSave)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .tint(proDark ? Tokens.electricBlue : nil)
+        .tint(theme == .dark ? Tokens.electricBlue : nil)
     }
 }
