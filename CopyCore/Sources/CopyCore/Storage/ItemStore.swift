@@ -187,7 +187,14 @@ public struct ItemStore {
     /// Results page the same way history does, so favorites get the same exemption from
     /// `limit` for the same reason — see `fetchRecentPage`. Matching favorites come first
     /// and in full; everything else is bounded.
-    public func search(filter: SearchFilter, limit: Int = 100) throws -> [ClipItem] {
+    /// Set `favoritesFirst` to false for one bounded recency window, without changing marks.
+    public func search(filter: SearchFilter, limit: Int = 100, favoritesFirst: Bool = true) throws -> [ClipItem] {
+        if !favoritesFirst {
+            guard let query = searchQuery(filter, isFavorite: nil, limit: limit) else { return [] }
+            return try writer.read { db in
+                try ClipItem.fetchAll(db, sql: query.sql, arguments: StatementArguments(query.arguments))
+            }
+        }
         guard let favorites = searchQuery(filter, isFavorite: true, limit: nil),
               let rest = searchQuery(filter, isFavorite: false, limit: limit) else { return [] }
         return try writer.read { db in
@@ -201,7 +208,7 @@ public struct ItemStore {
     /// Builds one half of `search(filter:)`: the matching rows on one side of the favorite
     /// split, newest first, optionally bounded. Returns nil when the free text can't compile
     /// to an FTS pattern, which the caller treats as "no results".
-    private func searchQuery(_ filter: SearchFilter, isFavorite: Bool, limit: Int?)
+    private func searchQuery(_ filter: SearchFilter, isFavorite: Bool?, limit: Int?)
         -> (sql: String, arguments: [any DatabaseValueConvertible])? {
         var sql: String
         var arguments: [any DatabaseValueConvertible] = []
@@ -220,7 +227,7 @@ public struct ItemStore {
         sql += facets.sql
         arguments.append(contentsOf: facets.arguments)
         // A literal 0/1 from a Bool, not caller text, so there's nothing to bind or escape.
-        sql += " AND item.isFavorite = \(isFavorite ? 1 : 0)"
+        if let isFavorite { sql += " AND item.isFavorite = \(isFavorite ? 1 : 0)" }
         sql += " ORDER BY item.lastUsedAt DESC"
         if let limit {
             sql += " LIMIT ?"
@@ -440,8 +447,11 @@ public struct ItemStore {
     ///
     /// The two queries can't overlap: one asks for `isFavorite = true` and the other for
     /// `isFavorite = false`, so concatenating them never duplicates a row.
-    func fetchRecentPage(_ db: Database, filter: SearchFilter, limit: Int) throws -> [ClipItem] {
+    func fetchRecentPage(_ db: Database, filter: SearchFilter, limit: Int, favoritesFirst: Bool = true) throws -> [ClipItem] {
         let base = applyFacets(filter, to: ClipItem.all())
+        if !favoritesFirst {
+            return try base.order(Column("lastUsedAt").desc).limit(limit).fetchAll(db)
+        }
         let favorites = try base.filter(Column("isFavorite") == true)
             .order(Column("lastUsedAt").desc)
             .fetchAll(db)
@@ -454,8 +464,9 @@ public struct ItemStore {
 
     /// Synchronous counterpart to `observeRecent(filter:limit:)`, for callers that want one
     /// page rather than a live feed. Same rows, same order.
-    public func recentPage(filter: SearchFilter, limit: Int = 100) throws -> [ClipItem] {
-        try writer.read { db in try fetchRecentPage(db, filter: filter, limit: limit) }
+    /// With `favoritesFirst: false`, favorites count toward the normal recency limit.
+    public func recentPage(filter: SearchFilter, limit: Int = 100, favoritesFirst: Bool = true) throws -> [ClipItem] {
+        try writer.read { db in try fetchRecentPage(db, filter: filter, limit: limit, favoritesFirst: favoritesFirst) }
     }
 
     public func observeRecent(kinds: Set<ItemKind>? = nil, limit: Int = 100,
@@ -479,14 +490,14 @@ public struct ItemStore {
     /// with the filter's non-text facets applied, so filter-only shelf views keep updating
     /// as new items are captured. Free text (`filter.text`) is ignored here — the app layer
     /// routes text queries to the one-shot `search(filter:)` instead.
-    public func observeRecent(filter: SearchFilter, limit: Int = 100,
+    public func observeRecent(filter: SearchFilter, limit: Int = 100, favoritesFirst: Bool = true,
                               onError: @escaping (Error) -> Void,
                               onChange: @escaping ([ClipItem]) -> Void) -> ObservationToken {
         // Built with the query interface (not `facetClauses`' raw SQL) so the observation's
         // @Sendable fetch closure captures only the Sendable `filter`/`limit`, not the
         // existential-typed argument array.
         let observation = ValueObservation.tracking { db -> [ClipItem] in
-            try fetchRecentPage(db, filter: filter, limit: limit)
+            try fetchRecentPage(db, filter: filter, limit: limit, favoritesFirst: favoritesFirst)
         }
         let cancellable = observation.start(in: writer,
                                             scheduling: .async(onQueue: .main),

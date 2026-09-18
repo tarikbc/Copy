@@ -126,4 +126,53 @@ final class FavoritesPagingTests: XCTestCase {
         let store = try makeTempStore()
         XCTAssertEqual(try store.recentPage(filter: SearchFilter(), limit: 100).count, 0)
     }
+    func testDisabledFavoritesUseOneRecencyWindowAndKeepSavedMarks() throws {
+        let store = try makeTempStore()
+        let items = try seed(store, count: 150, from: base)
+        try store.setFavorite(itemID: XCTUnwrap(items[0].id), true)
+        try store.setFavorite(itemID: XCTUnwrap(items[149].id), true)
+        let page = try store.recentPage(filter: SearchFilter(), limit: 100, favoritesFirst: false)
+        XCTAssertEqual(page.map(\.uuid), Array(items.suffix(100).reversed()).map(\.uuid))
+        let grown = try store.recentPage(filter: SearchFilter(), limit: 150, favoritesFirst: false)
+        XCTAssertEqual(Array(grown.prefix(100)).map(\.uuid), page.map(\.uuid))
+        XCTAssertEqual(grown.last?.uuid, items[0].uuid)
+        XCTAssertTrue(try XCTUnwrap(store.item(uuid: items[0].uuid)).isFavorite)
+        let enabled = try store.recentPage(filter: SearchFilter(), limit: 100)
+        XCTAssertEqual(Set(enabled.prefix(2).map(\.uuid)), Set([items[0].uuid, items[149].uuid]))
+        _ = try store.prune(olderThan: base.addingTimeInterval(200), maxItems: nil)
+        XCTAssertNotNil(try store.item(uuid: items[0].uuid))
+    }
+
+    func testDisabledFavoritesTextSearchStillFiltersAndPages() throws {
+        let store = try makeTempStore()
+        let items = try seed(store, count: 150, from: base)
+        try store.setFavorite(itemID: XCTUnwrap(items[0].id), true)
+        let filter = SearchFilter(text: "item")
+        let result = try store.search(filter: filter, limit: 100, favoritesFirst: false)
+        XCTAssertEqual(result.map(\.uuid), Array(items.suffix(100).reversed()).map(\.uuid))
+        XCTAssertEqual(try store.search(filter: SearchFilter(text: "missing"), favoritesFirst: false).count, 0)
+    }
+
+    func testDisabledFavoritesObservationUsesTheSameWindow() throws {
+        let store = try makeTempStore()
+        let items = try seed(store, count: 5, from: base)
+        try store.setFavorite(itemID: XCTUnwrap(items[0].id), true)
+        let received = expectation(description: "recency observation")
+        let token = store.observeRecent(filter: SearchFilter(), limit: 2, favoritesFirst: false,
+            onError: { error in XCTFail("\(error)"); received.fulfill() },
+            onChange: { page in
+                XCTAssertEqual(page.map(\.uuid), [items[4].uuid, items[3].uuid])
+                received.fulfill()
+            })
+        wait(for: [received], timeout: 3)
+        token.cancel()
+    }
+
+    func testFavoritesSuggestionCanBeHidden() {
+        let normal = searchSuggestions(prefix: "fav", apps: [], pinboards: [], query: SearchQuery())
+        XCTAssertTrue(normal.contains { $0.token == .favorites })
+        let hidden = searchSuggestions(prefix: "fav", apps: [], pinboards: [], query: SearchQuery(), includeFavorites: false)
+        XCTAssertFalse(hidden.contains { $0.token == .favorites })
+    }
+
 }

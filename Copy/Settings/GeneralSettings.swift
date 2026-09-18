@@ -34,6 +34,14 @@ struct GeneralSettings: View {
             }
 
             Section {
+                Toggle("Enable Favorites", isOn: $settings.favoritesEnabled)
+            } footer: {
+                Text("Show favorite actions and keep favorites at the front of history. Turning this off preserves saved favorites and their protection from automatic cleanup.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 Toggle("Always Use Dark Shelf", isOn: $settings.shelfProDark)
             } footer: {
                 Text("Keeps the shelf and Paste Stack dark with a blue accent, even in Light Mode. Off by default, so they follow your system appearance.")

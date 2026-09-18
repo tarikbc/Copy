@@ -421,6 +421,9 @@ final class AppCoordinator {
             self?.shelfController.setHideDuringScreenSharing(hide)
             self?.pasteStackController.setHideDuringScreenSharing(hide)
         }
+        settings.onFavoritesEnabledChange = { [weak self] _ in
+            self?.shelfViewModel.favoritesSettingChanged()
+        }
         settings.onCompactShelfChange = { [weak self] compact in
             self?.shelfController.setCompactShelf(compact)
         }

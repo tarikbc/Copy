@@ -80,6 +80,7 @@ final class SettingsStore {
     static let recognizeImageTextKey = "recognizeImageText"
     static let excludedBundleIDsKey = "excludedBundleIDs"
     static let hideDuringScreenSharingKey = "hideDuringScreenSharing"
+    static let favoritesEnabledKey = "favoritesEnabled"
     static let compactShelfKey = "compactShelf"
     static let shelfProDarkKey = "shelfProDark"
     static let hideMenuBarIconKey = "hideMenuBarIcon"
@@ -140,6 +141,16 @@ final class SettingsStore {
             onCompactShelfChange?(compactShelf)
         }
     }
+
+    /// Hides favorites presentation without deleting saved marks or retention protection.
+    var favoritesEnabled: Bool {
+        didSet {
+            guard favoritesEnabled != oldValue else { return }
+            defaults.set(favoritesEnabled, forKey: Self.favoritesEnabledKey)
+            onFavoritesEnabledChange?(favoritesEnabled)
+        }
+    }
+    @ObservationIgnored var onFavoritesEnabledChange: ((Bool) -> Void)?
 
     /// A fixed "pro dark" look for the shelf and paste stack: a forced dark appearance
     /// plus an electric-blue accent, regardless of the system appearance or accent color
@@ -224,6 +235,7 @@ final class SettingsStore {
         fetchLinkPreviews = (defaults.object(forKey: Self.fetchLinkPreviewsKey) as? Bool) ?? true
         recognizeImageText = (defaults.object(forKey: Self.recognizeImageTextKey) as? Bool) ?? true
         hideDuringScreenSharing = (defaults.object(forKey: Self.hideDuringScreenSharingKey) as? Bool) ?? false
+        favoritesEnabled = (defaults.object(forKey: Self.favoritesEnabledKey) as? Bool) ?? true
         compactShelf = (defaults.object(forKey: Self.compactShelfKey) as? Bool) ?? false
         shelfProDark = (defaults.object(forKey: Self.shelfProDarkKey) as? Bool) ?? false
         hideMenuBarIcon = (defaults.object(forKey: Self.hideMenuBarIconKey) as? Bool) ?? false
