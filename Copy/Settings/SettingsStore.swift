@@ -233,6 +233,11 @@ final class SettingsStore {
         if let data = defaults.data(forKey: Self.excludedBundleIDsKey),
            let decoded = try? JSONDecoder().decode([String].self, from: data) {
             excludedBundleIDs = decoded.sorted()
+        } else if defaults.object(forKey: Self.excludedBundleIDsKey) == nil,
+                  !defaults.bool(forKey: "hasOnboarded") {
+            // Only a new profile gets defaults; preserve existing lists, including [].
+            excludedBundleIDs = ["com.apple.Passwords", "com.apple.keychainaccess"].sorted()
+            persistExcludedBundleIDs()
         } else {
             excludedBundleIDs = []
         }
