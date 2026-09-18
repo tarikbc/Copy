@@ -186,14 +186,16 @@ final class ShelfViewModel {
         return ordered.compactMap { uuid in items.first(where: { $0.uuid == uuid }) }
     }
 
-    /// Restarts the query after the search, tab, or facets changed. A new query starts back
-    /// at the first page, so the window never carries over from the previous one.
+    /// Re-runs the query after the Favorites setting changed. Drops the favorites pill
+    /// first, since it can no longer match anything once the setting is off.
     func favoritesSettingChanged() {
         if !settings.favoritesEnabled { searchQuery.remove(.favorites) }
         recomputeSuggestions()
         refresh()
     }
 
+    /// Restarts the query after the search, tab, or facets changed. A new query starts back
+    /// at the first page, so the window never carries over from the previous one.
     func refresh() {
         page.reset()
         previewShown = false

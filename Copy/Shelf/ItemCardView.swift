@@ -672,11 +672,11 @@ private struct CardHoverActions: View {
     var body: some View {
         HStack(spacing: 1) {
             if favoritesEnabled {
-            IconButton(systemName: isFavorite ? "star.fill" : "star",
-                       fontSize: 11, size: CGSize(width: 22, height: 22),
-                       tint: isFavorite ? .yellow : .secondary,
-                       help: isFavorite ? "Remove from favorites" : "Favorite",
-                       action: onToggleFavorite)
+                IconButton(systemName: isFavorite ? "star.fill" : "star",
+                           fontSize: 11, size: CGSize(width: 22, height: 22),
+                           tint: isFavorite ? .yellow : .secondary,
+                           help: isFavorite ? "Remove from favorites" : "Favorite",
+                           action: onToggleFavorite)
             }
             if let onUnpin {
                 IconButton(systemName: "pin.slash",
