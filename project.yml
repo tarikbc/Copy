@@ -50,6 +50,10 @@ targets:
             UTTypeDescription: Copy clipboard item
             UTTypeConformsTo:
               - public.data
+          - UTTypeIdentifier: com.tarikbc.copy.pinboard
+            UTTypeDescription: Copy pinboard
+            UTTypeConformsTo:
+              - public.data
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tarikbc.Copy

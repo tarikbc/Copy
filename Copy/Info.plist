@@ -46,6 +46,16 @@
 			<key>UTTypeIdentifier</key>
 			<string>com.tarikbc.copy.item</string>
 		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Copy pinboard</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.tarikbc.copy.pinboard</string>
+		</dict>
 	</array>
 </dict>
 </plist>
