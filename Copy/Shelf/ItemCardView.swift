@@ -351,6 +351,7 @@ struct ItemCardView: View {
         let display = Self.preservingIndentation(capped)
         if highlight.language != nil {
             highlightedText(display, tokens: highlight.tokens)
+                .font(.system(size: 12, design: .monospaced))
         } else {
             Text(display)
         }
@@ -378,7 +379,7 @@ struct ItemCardView: View {
             colorSwatchBody(hex)
         } else {
             codeAwareBody(text: item.plainText ?? "", cap: 1_500)
-                .font(Tokens.bodyMono)
+                .font(Tokens.cardBody)
                 .lineLimit(bodyLineLimit(standard: 11, compact: 6))
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -392,7 +393,7 @@ struct ItemCardView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Tokens.color(fromHex: hex))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Text(hex).font(Tokens.bodyMono)
+            Text(hex).font(Tokens.cardBody)
         }
     }
 
@@ -403,7 +404,7 @@ struct ItemCardView: View {
         VStack(alignment: .leading, spacing: 6) {
             FileThumbnail(item: item, store: store, compact: compact)
             Text(item.plainText ?? "File")
-                .font(Tokens.bodyMono)
+                .font(Tokens.cardBody)
                 .lineLimit(bodyLineLimit(standard: 2, compact: 1))
         }
     }
@@ -457,7 +458,7 @@ struct ItemCardView: View {
                         .lineLimit(bodyLineLimit(standard: 2, compact: 1))
                         .multilineTextAlignment(.leading)
                     Text(String((item.plainText ?? "").prefix(1_500)))
-                        .font(Tokens.bodyMono)
+                        .font(Tokens.cardBody)
                         .foregroundStyle(.secondary)
                         .lineLimit(bodyLineLimit(standard: 2, compact: 1))
                 }
@@ -470,7 +471,7 @@ struct ItemCardView: View {
                         .font(Tokens.cardSubtitle)
                         .lineLimit(1)
                     Text(String((item.plainText ?? "").prefix(1_500)))
-                        .font(Tokens.bodyMono)
+                        .font(Tokens.cardBody)
                         .foregroundStyle(.secondary)
                         .lineLimit(bodyLineLimit(standard: 5, compact: 3))
                 }
@@ -485,7 +486,7 @@ struct ItemCardView: View {
                     .fill(Tokens.color(fromHex: item.plainText ?? ""))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 Text(item.plainText ?? "")
-                    .font(Tokens.bodyMono)
+                    .font(Tokens.cardBody)
             }
         }
     }
