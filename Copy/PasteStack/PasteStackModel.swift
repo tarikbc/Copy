@@ -25,6 +25,9 @@ final class PasteStackModel {
 
     let store: ItemStore
 
+    /// Mirrors `SettingsStore.hideSecrets`: row titles mask secrets.
+    var hideSecrets = true
+
     /// Bumped after an in-place edit so `PasteStackView` re-renders (the queue's uuids
     /// don't change on an edit, so nothing else would trigger a refresh).
     var revision = 0

@@ -123,6 +123,21 @@ enum DemoData {
             from: notes, at: ago(28 * minute))
         try store.setTitle(itemID: checklistID, "Launch checklist")
 
+        // Fake secrets to show Hide Secrets, assembled from pieces so secret scanners ignore them.
+        let fakeOpenAIKey = "sk" + "-proj-" + "FAKEfakeFAKEfake1234567890abcd"
+        let fakeStripeKey = "sk" + "_test_" + "FAKE0000FAKE0000FAKE0000"
+        let fakeGitHubToken = "gh" + "p_" + "abcdefghijklmnopqrstuvwxyz0123456789"
+        let envID = try text(
+            "APP_ENV=staging\nOPENAI_API_KEY=\(fakeOpenAIKey)\nSTRIPE_SECRET_KEY=\(fakeStripeKey)\nDB_PASSWORD=Tr0ub4dor-and-3-more\nLOG_LEVEL=debug",
+            from: vscode, at: ago(24 * minute))
+        try store.setTitle(itemID: envID, ".env (staging)")
+        try text(fakeGitHubToken, from: terminal, at: ago(25 * minute))
+        try text("Card on file: 4242 4242 4242 4242, exp 04/29. Use it for the domain renewal.",
+                 from: mail, at: ago(26 * minute))
+        try link("https://api.example.com/v1/export?format=csv&access_token=a1b2c3d4e5f6g7h8i9j0",
+                 title: "Export — Example API",
+                 from: safari, at: ago(27 * minute), favicon: .systemTeal)
+
         let figmaLinkID = try link("https://figma.com/file/9aB2/Copy-Marketing",
                                    title: "Copy — Marketing site (Figma)",
                                    from: figma, at: ago(34 * minute), favicon: .systemPurple)

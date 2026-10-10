@@ -178,7 +178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(empty)
         }
         for item in items {
-            let menuItem = NSMenuItem(title: item.displayTitle,
+            let menuItem = NSMenuItem(title: item.displayTitle(hidingSecrets: coordinator.settings.hideSecrets),
                                       action: #selector(pasteMenuItem(_:)),
                                       keyEquivalent: "")
             menuItem.target = self

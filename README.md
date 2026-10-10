@@ -76,6 +76,8 @@ including the text inside screenshots.
 **Private by design**
 - Everything stays on your Mac. No account, no cloud sync, no telemetry
 - Respects the system concealed-type marker, so password managers are never recorded
+- Hides API keys, tokens, passwords and card numbers on cards until you reveal them, and can
+  delete those cards automatically a set time after you copy them (both optional)
 - Per-app exclusions, plus hide the shelf from screen recordings and shares
 - Configurable history retention; export and import your history as a single archive
 

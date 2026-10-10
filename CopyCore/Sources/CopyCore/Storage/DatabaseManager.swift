@@ -106,6 +106,12 @@ public final class DatabaseManager {
                 t.add(column: "emoji", .text)
             }
         }
+        migrator.registerMigration("v4") { db in
+            // NULL = not checked yet; `ItemStore.pruneSecrets` fills it in.
+            try db.alter(table: "item") { t in
+                t.add(column: "containsSecret", .boolean)
+            }
+        }
         return migrator
     }
 }

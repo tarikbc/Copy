@@ -563,6 +563,8 @@ private struct ShelfItemsRow: View {
                                 compact: compact,
                                 searchQuery: viewModel.searchQuery.text,
                                 isFlashing: viewModel.flashItemID == item.uuid,
+                                hideSecrets: viewModel.settings.hideSecrets,
+                                secretsRevealed: viewModel.revealedSecretIDs.contains(item.uuid),
                                 pasteNumber: (viewModel.optionHeld && index < 9) ? index + 1 : nil,
                                 canShowInHistory: !viewModel.searchQuery.isEmpty || currentPinboardID != nil,
                                 onClick: { modifiers in viewModel.handleCardClick(item, modifiers: modifiers) },
@@ -581,6 +583,7 @@ private struct ShelfItemsRow: View {
                                 onCommitInlineRename: { viewModel.commitInlineRename(item, to: $0) },
                                 onCancelInlineRename: { viewModel.cancelInlineRename() },
                                 onToggleFavorite: { viewModel.toggleFavorite(item) },
+                                onToggleSecrets: { viewModel.toggleSecretsRevealed(item) },
                                 onAddToPinboard: { id in viewModel.addItem(item, toPinboard: id) },
                                 onRemoveFromPinboard: {
                                     if let currentPinboardID {
@@ -622,7 +625,10 @@ private struct ShelfItemsRow: View {
                                 get: { viewModel.isSelected(item) && item.uuid == viewModel.selection.primary && viewModel.previewShown },
                                 set: { viewModel.previewShown = $0 }
                             )) {
-                                PreviewPane(item: item, store: viewModel.store)
+                                PreviewPane(item: item, store: viewModel.store,
+                                            hideSecrets: viewModel.settings.hideSecrets,
+                                            secretsRevealed: viewModel.revealedSecretIDs.contains(item.uuid),
+                                            onToggleSecrets: { viewModel.toggleSecretsRevealed(item) })
                             }
                         }
                     }
