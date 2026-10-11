@@ -5,6 +5,26 @@ All notable changes to Copy are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-10-11
+
+Secrets stay out of sight, and you can sweep up a whole run of cards at once.
+
+### Added
+
+- Hide Secrets. API keys, tokens, passwords, and card numbers show with the middle masked, like `sk-p••••••abcd`, on cards, in the preview, in the Paste Stack, and in the menu bar list. An eye button on the card and in the preview reveals one. Pasting, copying, and dragging still use the real value. On by default, under Settings, Privacy.
+- Delete Secrets After. Copy can delete a card that contains a secret a set time after you copied it, from 1 hour to 7 days. Off by default, and favorites and pinboard items are never deleted.
+- Drag to select. Press in the shelf's empty space and drag a rectangle over cards to select them, like in Finder. Hold <kbd>⌘</kbd> or <kbd>Shift</kbd> to add to the selection, and the row scrolls when you hold at an edge. Pressing on a card or a tab still drags it.
+
+### Changed
+
+- Secret detection is deliberately conservative. It recognizes known key formats, JWTs, private keys, valid card numbers, and `name = value` pairs only when the value is quoted, the name is an all-caps `.env` name, or it is a URL parameter.
+- The shelf closes with a quicker fade and sink.
+- After you drop cards onto a pinboard, only the card you held stays selected.
+
+### Fixed
+
+- The search help panel blurs the cards beneath it, instead of changing with the pointer.
+
 ## [0.2.0] - 2026-10-01
 
 Your shelf, your way: light or dark, attached or floating, with a tap you can feel.

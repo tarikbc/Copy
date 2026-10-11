@@ -53,7 +53,8 @@ including the text inside screenshots.
 - A callout names the board a dragged card will land in; reorder pinboards by dragging their tabs
 - Favorites keep starred cards at the front of the shelf, and can be switched off entirely
 - Search scoped to the active pinboard, or your whole history
-- Click a card's title to rename it in place; multi-select for bulk actions
+- Click a card's title to rename it in place; multi-select for bulk actions, or drag a
+  rectangle across cards to select them, like in Finder
 - Drawer-first: reach Settings, Updates, and every action from inside the shelf, and
   optionally hide the menu bar icon entirely
 
