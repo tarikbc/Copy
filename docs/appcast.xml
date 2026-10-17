@@ -2,6 +2,19 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
     <channel>
         <item>
+            <title>Version 0.4.0</title>
+            <pubDate>Sat, 17 Oct 2026 02:03:05 +0000</pubDate>
+            <sparkle:version>11</sparkle:version>
+            <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure
+                url="https://github.com/tarikbc/Copy/releases/download/v0.4.0/Copy-0.4.0.zip"
+                sparkle:edSignature="EpD5yIFWgD6JYaDHSo1TlxaQ25UZ1kAdSsU6eQmv6kR8hP9j1Hikbgz8KLk50/5Au/UxJuIIPSGYec5GleIDBw=="
+                length="5453513"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
             <title>Version 0.3.0</title>
             <pubDate>Sun, 11 Oct 2026 23:28:31 +0000</pubDate>
             <sparkle:version>10</sparkle:version>
