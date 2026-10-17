@@ -80,6 +80,9 @@ final class ShelfViewModel {
     var selection = ShelfSelection()
     var previewShown = false
     var editingItem: ClipItem?
+    var splittingItem: ClipItem?
+    /// Shared so the split preview observes the current FIFO/LIFO order.
+    var pasteStackModel: PasteStackModel?
     var pinboardPopoverShown = false
     var creatingItem = false
     /// Presents the keyboard-and-tips cheat sheet (reached from the drawer menu).
@@ -142,6 +145,7 @@ final class ShelfViewModel {
     @ObservationIgnored var onPaste: ((ClipItem, Bool) -> Void)?
     @ObservationIgnored var onPasteMultiple: ((String) -> Void)?
     @ObservationIgnored var onAddToPasteStack: ((ClipItem) -> Void)?
+    @ObservationIgnored var onSplitToPasteStack: (([String]) -> Void)?
     @ObservationIgnored var onCopyText: ((String) -> Void)?
     /// Places one card's full representations on the clipboard. Returns whether it
     /// worked, so `copySelection` can leave the shelf open when the item is gone.
@@ -386,6 +390,7 @@ final class ShelfViewModel {
         previewShown = false
         if let first = items.first { selection.click(first.uuid) } else { selection.reset() }
         editingItem = nil
+        splittingItem = nil
         creatingItem = false
         adjustingColorItem = nil
         inlineRenamingItemID = nil

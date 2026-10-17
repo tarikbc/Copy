@@ -4,8 +4,8 @@ import Foundation
 import Observation
 
 /// Backs the Paste Stack palette (`PasteStackController`/`PasteStackView`): owns the
-/// pure `PasteStackQueue` plus whether the palette is currently active, and resolves
-/// queued uuids to `ClipItem`s/representations via the store.
+/// pure `PasteStackQueue` plus whether the palette is currently active. Resolves
+/// history UUIDs via the store and temporary split entries directly from the queue.
 @MainActor
 @Observable
 final class PasteStackModel {
@@ -48,8 +48,8 @@ final class PasteStackModel {
     /// CopyCore stays Foundation-only and takes pre-encoded `Data`). Editing the shared
     /// `ClipItem` updates it everywhere (history too), the expected behavior for the same
     /// item; the `revision` bump re-renders the palette since the queue's uuids don't change.
+    /// Temporary split entries keep their edits in memory and never write to the store.
     func commitEdit(_ attributed: NSAttributedString, for item: ClipItem) {
-        guard let id = item.id else { return }
         let plainText = attributed.string
         guard let rtfData = attributed.rtf(
             from: NSRange(location: 0, length: attributed.length),
@@ -58,6 +58,11 @@ final class PasteStackModel {
             NSLog("Copy: failed to RTF-encode edited paste-stack item")
             return
         }
+        if queue.updateTemporaryEntry(item.uuid, text: plainText, rtfData: rtfData) {
+            revision += 1
+            return
+        }
+        guard let id = item.id else { return }
         do {
             try store.replaceContent(itemID: id, rtfData: rtfData, plainText: plainText)
             revision += 1
@@ -74,14 +79,17 @@ final class PasteStackModel {
     /// a body is evaluating is undefined behavior, so stale-uuid cleanup happens only
     /// at explicit event points via `reconcile()`, never as a side effect of reading.
     func items() -> [ClipItem] {
-        queue.itemUUIDs.compactMap { try? store.item(uuid: $0) }
+        queue.itemUUIDs.compactMap { uuid in
+            queue.temporaryEntry(for: uuid)?.item ?? (try? store.item(uuid: uuid))
+        }
     }
 
     /// Drops any queued uuid that no longer resolves to a stored item. Call this at
     /// explicit event points — never from `items()` — such as `PasteStackController`
     /// showing the palette, so the queue doesn't accumulate orphaned uuids forever.
     func reconcile() {
-        for uuid in queue.itemUUIDs where (try? store.item(uuid: uuid)) == nil {
+        for uuid in queue.itemUUIDs where queue.temporaryEntry(for: uuid) == nil
+            && (try? store.item(uuid: uuid)) == nil {
             queue.remove(uuid)
         }
     }
@@ -92,13 +100,22 @@ final class PasteStackModel {
         if !isActive { isActive = true }
     }
 
+    func enqueueTexts(_ texts: [String]) {
+        guard !texts.isEmpty else { return }
+        queue.enqueueTexts(texts)
+        if !isActive { isActive = true }
+    }
+
     /// Advances the queue and resolves representations for the next item, skipping
     /// (and retrying) any uuid whose item or representations have gone missing since
     /// being queued. Returns `nil` once the queue is exhausted. Unlike `items()`, this
     /// runs from an explicit event handler (the paste engine, in Task 7), not from a
     /// SwiftUI body — `queue.advance()`'s mutation is safe here.
     func advanceAndResolve() -> [CapturedRepresentation]? {
-        while let uuid = queue.advance() {
+        while let uuid = queue.next {
+            let temporary = queue.temporaryEntry(for: uuid)
+            queue.advance()
+            if let temporary { return temporary.representations }
             guard let id = (try? store.item(uuid: uuid))?.id,
                   let reps = try? store.representations(forItemID: id),
                   !reps.isEmpty else {

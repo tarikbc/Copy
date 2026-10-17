@@ -16,6 +16,7 @@ sign-off the CI expects on every commit.
 swift test --package-path CopyCore      # the engine and its test suite
 xcodegen generate                       # regenerate Copy.xcodeproj
 xcodebuild -project Copy.xcodeproj -scheme Copy -configuration Debug build
+xcodebuild -project Copy.xcodeproj -scheme Copy -configuration Debug test
 ```
 
 The core engine lives in `CopyCore` and has its own tests. Please add or update

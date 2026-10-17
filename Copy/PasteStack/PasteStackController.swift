@@ -226,6 +226,7 @@ final class PasteStackController {
         host.contentView = NSHostingView(rootView: PasteStackEditorHost(
             item: item,
             store: model.store,
+            initialRTF: model.queue.temporaryEntry(for: item.uuid)?.rtfData,
             theme: theme,
             onCancel: { [weak self] in self?.dismissEditor() },
             onSave: { [weak self] attributed in
