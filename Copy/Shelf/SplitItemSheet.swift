@@ -5,6 +5,7 @@ struct SplitItemSheet: View {
     let text: String
     let isLIFO: Bool
     let existingCount: Int
+    let hideSecrets: Bool
     let onCancel: () -> Void
     let onAdd: ([String]) -> Void
 
@@ -35,11 +36,12 @@ struct SplitItemSheet: View {
         return suggestion
     }
 
-    init(text: String, isLIFO: Bool, existingCount: Int,
+    init(text: String, isLIFO: Bool, existingCount: Int, hideSecrets: Bool = false,
          onCancel: @escaping () -> Void, onAdd: @escaping ([String]) -> Void) {
         self.text = text
         self.isLIFO = isLIFO
         self.existingCount = existingCount
+        self.hideSecrets = hideSecrets
         self.onCancel = onCancel
         self.onAdd = onAdd
         let initialSeparator = TextSplitter.suggestedSeparator(for: text) ?? .comma
@@ -219,7 +221,7 @@ struct SplitItemSheet: View {
                             .foregroundStyle(number == 1 ? Color.white : Color.secondary)
                             .frame(minWidth: 20, minHeight: 20)
                             .background(Capsule().fill(number == 1 ? Color.accentColor : Color(nsColor: .quaternaryLabelColor).opacity(0.5)))
-                        Text(entry)
+                        Text(hideSecrets ? SecretDetector.masked(entry) : entry)
                             .font(Tokens.cardBody)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)

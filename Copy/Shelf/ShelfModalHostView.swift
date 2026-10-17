@@ -34,6 +34,7 @@ struct ShelfModalHostView: View {
                 text: item.plainText ?? "",
                 isLIFO: viewModel.pasteStackModel?.queue.isLIFO ?? false,
                 existingCount: viewModel.pasteStackModel?.items().count ?? 0,
+                hideSecrets: viewModel.hidesSecrets(in: item),
                 onCancel: { viewModel.splittingItem = nil },
                 onAdd: { entries in
                     viewModel.splittingItem = nil
