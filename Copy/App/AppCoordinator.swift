@@ -88,6 +88,7 @@ final class AppCoordinator {
             guard viewModel.editingItem == nil, !viewModel.pinboardPopoverShown,
                   !viewModel.creatingItem, !viewModel.showingTips,
                   viewModel.adjustingColorItem == nil,
+                  viewModel.splittingItem == nil,
                   viewModel.inlineRenamingItemID == nil else { return false }
             // Type-to-search: the search field isn't auto-focused, so a letter typed while
             // browsing begins a search and moves focus into the field.
@@ -276,6 +277,13 @@ final class AppCoordinator {
         }
         shelfViewModel.onAddToPasteStack = { [weak self] item in
             self?.addToPasteStack(item)
+        }
+        shelfViewModel.pasteStackModel = pasteStackModel
+        shelfViewModel.onSplitToPasteStack = { [weak self, weak controller] entries in
+            guard let self, !entries.isEmpty else { return }
+            controller?.hide(restoreFocus: true)
+            self.pasteStackModel.enqueueTexts(entries)
+            HUD.show("Added \(entries.count) entries to Paste Stack")
         }
         shelfViewModel.onOpenURL = { [weak controller] url in
             if let controller {

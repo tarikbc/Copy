@@ -41,8 +41,8 @@ jobs:
           swift --version
       - name: Core tests
         run: swift test --package-path CopyCore
-      - name: Build app
+      - name: Build and test app
         run: |
           brew install xcodegen
           xcodegen generate
-          xcodebuild -project Copy.xcodeproj -scheme Copy -configuration Debug CODE_SIGNING_ALLOWED=NO build
+          xcodebuild -project Copy.xcodeproj -scheme Copy -configuration Debug CODE_SIGNING_ALLOWED=NO test

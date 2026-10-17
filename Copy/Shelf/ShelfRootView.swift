@@ -109,7 +109,7 @@ struct ShelfRootView: View {
 
     private var hasActiveModal: Bool {
         viewModel.editingItem != nil || viewModel.creatingItem
-            || viewModel.adjustingColorItem != nil || viewModel.showingTips
+            || viewModel.adjustingColorItem != nil || viewModel.showingTips || viewModel.splittingItem != nil
     }
 }
 
@@ -591,6 +591,7 @@ private struct ShelfItemsRow: View {
                                     }
                                 },
                                 onAddToPasteStack: { viewModel.addToPasteStack(item) },
+                                onSplitToPasteStack: { viewModel.splittingItem = item },
                                 onCopyText: { viewModel.copyText(item) },
                                 onQuickLook: { viewModel.quickLook(item) },
                                 onOpen: { viewModel.open(item) },

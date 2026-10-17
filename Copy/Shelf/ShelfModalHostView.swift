@@ -29,6 +29,19 @@ struct ShelfModalHostView: View {
                 onCancel: { viewModel.editingItem = nil },
                 onSave: { viewModel.commitEdit(attributed: $0) }
             )
+        } else if let item = viewModel.splittingItem {
+            SplitItemSheet(
+                text: item.plainText ?? "",
+                isLIFO: viewModel.pasteStackModel?.queue.isLIFO ?? false,
+                existingCount: viewModel.pasteStackModel?.items().count ?? 0,
+                hideSecrets: viewModel.hidesSecrets(in: item),
+                onCancel: { viewModel.splittingItem = nil },
+                onAdd: { entries in
+                    viewModel.splittingItem = nil
+                    viewModel.onSplitToPasteStack?(entries)
+                }
+            )
+            .id(item.uuid)
         } else if viewModel.creatingItem {
             CreateItemSheet(
                 onCancel: { viewModel.creatingItem = false },

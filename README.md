@@ -71,6 +71,10 @@ including the text inside screenshots.
 - Two-click-to-paste by default (single click selects, double click pastes), or switch to single-click
 - Paste stack: queue several cards and walk through them on successive <kbd>⌘V</kbd> presses,
   shown as a numbered queue with the next item marked
+- Right-click a text card and select **Split into Paste Stack…** to split a list by a separator.
+  Preview the entries and remove duplicates if needed. Split entries stay in Paste Stack only and disappear when the app closes.
+  Regex separators support mixed lists, such as `[,;\s]+` for commas, semicolons, and whitespace.
+  Apple Intelligence suggests a separator or regex when its local model is available. Manual selection works on all supported Macs.
 - <kbd>⌘O</kbd> opens the selected link or file without pasting; <kbd>⌘Z</kbd> undoes a delete
 - App Intents so Shortcuts can paste your latest item, search, or paste from a pinboard
 

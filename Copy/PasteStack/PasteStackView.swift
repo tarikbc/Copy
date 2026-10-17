@@ -294,6 +294,7 @@ private struct PasteStackRow: View {
 struct PasteStackEditorHost: View {
     let item: ClipItem
     let store: ItemStore
+    var initialRTF: Data? = nil
     var theme: ShelfTheme
     let onCancel: () -> Void
     let onSave: (NSAttributedString) -> Void
@@ -302,7 +303,7 @@ struct PasteStackEditorHost: View {
         ZStack {
             Color.black.opacity(0.32)
                 .ignoresSafeArea()
-            EditItemSheet(item: item, store: store, onCancel: onCancel, onSave: onSave)
+            EditItemSheet(item: item, store: store, initialRTF: initialRTF, onCancel: onCancel, onSave: onSave)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .tint(theme == .dark ? Tokens.electricBlue : nil)

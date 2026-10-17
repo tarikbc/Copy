@@ -49,6 +49,7 @@ struct ItemCardView: View {
     let onAddToPinboard: (Int64) -> Void
     let onRemoveFromPinboard: () -> Void
     let onAddToPasteStack: () -> Void
+    let onSplitToPasteStack: () -> Void
     let onCopyText: () -> Void
     let onQuickLook: () -> Void
     let onOpen: () -> Void
@@ -266,6 +267,9 @@ struct ItemCardView: View {
                 }
             }
             Button("Add to Paste Stack", action: onAddToPasteStack)
+            if isEditable, item.plainText?.isEmpty == false {
+                Button("Split into Paste Stack…", action: onSplitToPasteStack)
+            }
             if currentPinboardID != nil {
                 Button("Remove from Pinboard", action: onRemoveFromPinboard)
             }

@@ -5,6 +5,14 @@ All notable changes to Copy are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-16
+
+### Added
+
+- Split text cards into temporary Paste Stack entries. Select a separator, preview the paste order, and optionally remove duplicates.
+- Apple Intelligence separator suggestions when the local model is available. Manual splitting remains available on macOS 14 and later.
+- Regex separators with live validation and Apple Intelligence regex suggestions for mixed or patterned separators.
+
 ## [0.3.0] - 2026-10-11
 
 Secrets stay out of sight, and you can sweep up a whole run of cards at once.

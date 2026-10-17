@@ -16,12 +16,14 @@ struct EditItemSheet: View {
     @State private var original: NSAttributedString
     @StateObject private var editorController = RichTextEditorController()
 
-    init(item: ClipItem, store: ItemStore, onCancel: @escaping () -> Void, onSave: @escaping (NSAttributedString) -> Void) {
+    init(item: ClipItem, store: ItemStore, initialRTF: Data? = nil,
+         onCancel: @escaping () -> Void, onSave: @escaping (NSAttributedString) -> Void) {
         self.item = item
         self.store = store
         self.onCancel = onCancel
         self.onSave = onSave
-        let seeded = Self.seedAttributedText(item: item, store: store)
+        let seeded = initialRTF.flatMap { NSAttributedString(rtf: $0, documentAttributes: nil) }
+            ?? Self.seedAttributedText(item: item, store: store)
         _attributedText = State(initialValue: seeded)
         _original = State(initialValue: seeded)
     }
