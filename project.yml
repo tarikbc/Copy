@@ -30,8 +30,8 @@ targets:
       path: Copy/Info.plist
       properties:
         CFBundleDisplayName: Copy
-        CFBundleShortVersionString: "0.3.0"
-        CFBundleVersion: "10"
+        CFBundleShortVersionString: "0.4.0"
+        CFBundleVersion: "11"
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"
         NSHumanReadableCopyright: "© 2026 Tarik Caramanico - GPL-3.0"
@@ -57,7 +57,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tarikbc.Copy
-        MARKETING_VERSION: "0.3.0"
+        MARKETING_VERSION: "0.4.0"
         SWIFT_VERSION: "5.0"
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_STYLE: Automatic
