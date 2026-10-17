@@ -35,6 +35,20 @@ public struct ShelfSelection: Equatable, Sendable {
         selected = Set(order[range])
     }
 
+    /// Replaces the selection with `uuids`, the cards a drag-select sweep covers. The
+    /// primary becomes `preferredPrimary` when that card is in the set, else stays where
+    /// it was if still selected, else falls to the first selected card in `order`. An
+    /// empty set changes nothing: the shelf always keeps a selection.
+    public mutating func select(_ uuids: Set<String>, preferredPrimary: String? = nil, in order: [String]) {
+        guard !uuids.isEmpty else { return }
+        selected = uuids
+        if let preferredPrimary, uuids.contains(preferredPrimary) {
+            primary = preferredPrimary
+        } else if primary.map(uuids.contains) != true {
+            primary = order.first(where: uuids.contains) ?? uuids.first
+        }
+    }
+
     public mutating func move(_ delta: Int, in order: [String]) {
         guard !order.isEmpty else { return }
         guard let current = primary, let index = order.firstIndex(of: current) else {

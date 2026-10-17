@@ -78,6 +78,13 @@ final class ShelfViewModel {
     }
     var pinboards: [Pinboard] = []
     var selection = ShelfSelection()
+    /// The drag-select in the card row: its rectangle and which cards it touches. The
+    /// selection it produces is applied in `updateCardSweep`.
+    let cardSweep = CardSweep()
+    /// The selection as it was when the sweep began: what a sweep that touches no card
+    /// leaves in place, and what a ⌘/Shift sweep adds to.
+    @ObservationIgnored private var sweepBaseSelection = ShelfSelection()
+    @ObservationIgnored private var sweepAddsToSelection = false
     var previewShown = false
     var editingItem: ClipItem?
     var splittingItem: ClipItem?
@@ -97,6 +104,8 @@ final class ShelfViewModel {
     /// The uuid of the card the pointer is currently over, so a force-click can act on
     /// exactly the card under the cursor (set by `ItemCardView`'s hover callback).
     var hoveredItemID: String?
+    /// Cards (by uuid) whose secrets are shown. Cleared when the shelf closes.
+    private(set) var revealedSecretIDs: Set<String> = []
     /// The pinboard tab a dragged tab would land beside, and on which side, so that tab
     /// shows its insertion edge. Driven by `ShelfHostingView` (see `shelfDragMoved`).
     var reorderTargetedPinboardID: Int64?
@@ -115,6 +124,9 @@ final class ShelfViewModel {
     /// fallback for when the drag pasteboard can't name or hand over the payload yet.
     /// Cleared once the drag ends over the shelf, and replaced by the next drag.
     @ObservationIgnored private(set) var activeShelfDrag: ShelfDrag?
+    /// The card the pointer picked up in the most recent card drag — the one card of a
+    /// dragged selection that stays highlighted after it is filed into a pinboard.
+    @ObservationIgnored private var grabbedCardUUID: String?
     /// Set by a force-click (which fires before the click's own mouse-up resolves) so the
     /// release doesn't then paste the card. Consumed by the next `handleCardClick`.
     @ObservationIgnored var suppressNextCardPaste = false
@@ -397,6 +409,7 @@ final class ShelfViewModel {
         showingTips = false
         commandHeld = false
         hoveredItemID = nil
+        revealedSecretIDs = []
         if !searchQuery.isEmpty { searchQuery = SearchQuery() }
         suggestions = []
         cachedApps = []
@@ -404,6 +417,7 @@ final class ShelfViewModel {
         focusSearchRequested = false
         shelfDragEnded()
         dropCallout = nil
+        cardSweep.end()
         endSearchEditingRequested = false
     }
 
@@ -445,6 +459,40 @@ final class ShelfViewModel {
                 requestPaste(item, plain: false)
             }
         }
+    }
+
+    /// A press-and-drag began in the shelf at `point` (the `"shelfRoot"` space). Starts a
+    /// drag-select unless the press is on a card or a pinboard tab, which drags that instead.
+    /// Holding ⌘ or Shift adds the swept cards to the selection; otherwise they replace it.
+    func beginCardSweep(at point: CGPoint, modifiers: NSEvent.ModifierFlags) {
+        guard cardSweep.begin(at: point, avoiding: Array(pinboardTabFrames.values)) else { return }
+        sweepBaseSelection = selection
+        sweepAddsToSelection = !modifiers.isDisjoint(with: [.command, .shift])
+    }
+
+    func moveCardSweep(to point: CGPoint) {
+        cardSweep.move(to: point)
+        updateCardSweep()
+    }
+
+    /// The card row scrolled, so a sweep in progress now reaches different cards.
+    func cardRowContentMoved(to origin: CGPoint) {
+        if cardSweep.contentMoved(to: origin) { updateCardSweep() }
+    }
+
+    func endCardSweep() {
+        cardSweep.end()
+    }
+
+    /// Selects the cards the sweep rectangle touches. The primary follows the pointer, so
+    /// ⏎/Space act on the card it reached last.
+    private func updateCardSweep() {
+        guard cardSweep.isActive else { return }
+        var swept = cardSweep.hits
+        if sweepAddsToSelection { swept.formUnion(sweepBaseSelection.selected) }
+        var updated = sweepBaseSelection
+        updated.select(swept, preferredPrimary: cardSweep.nearestHit, in: items.map(\.uuid))
+        if updated != selection { selection = updated }
     }
 
     func moveSelection(_ delta: Int) {
@@ -636,6 +684,19 @@ final class ShelfViewModel {
             HUD.show("Couldn't complete that")
         }
         if !searchQuery.isEmpty { refresh() }
+    }
+
+    func hidesSecrets(in item: ClipItem) -> Bool {
+        settings.hideSecrets && !revealedSecretIDs.contains(item.uuid)
+    }
+
+    /// The eye button on a card or its preview.
+    func toggleSecretsRevealed(_ item: ClipItem) {
+        if revealedSecretIDs.contains(item.uuid) {
+            revealedSecretIDs.remove(item.uuid)
+        } else {
+            revealedSecretIDs.insert(item.uuid)
+        }
     }
 
     func toggleFavorite(_ item: ClipItem) {
@@ -886,6 +947,12 @@ final class ShelfViewModel {
         }
         let added = dropItems(uuids: uuids, toPinboard: pinboard)
         Haptics.snap()
+        // The dragged cards are filed, so let go of the multi-selection rather than leave
+        // one the user has to click away. The board opens with only the card they were
+        // holding highlighted, which shows where the drop landed.
+        if let held = grabbedCardUUID.flatMap({ uuids.contains($0) ? $0 : nil }) ?? uuids.first {
+            selection.click(held)
+        }
         tab = .pinboard(id)
         if added > 0 { showFiledCallout(pinboardID: id, count: added) }
         return true
@@ -1092,6 +1159,7 @@ final class ShelfViewModel {
         if !selection.selected.contains(item.uuid) {
             selection.click(item.uuid)
         }
+        grabbedCardUUID = item.uuid
         Haptics.tap()
         if selection.selected.count > 1 {
             activeShelfDrag = .cards(orderedSelectedItems.map(\.uuid))

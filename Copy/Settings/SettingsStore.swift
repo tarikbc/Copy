@@ -89,6 +89,52 @@ enum RetentionPeriod: String, CaseIterable {
     static let sliderOrder: [RetentionPeriod] = [.day, .week, .month, .threeMonths, .unlimited]
 }
 
+/// How long an item containing a secret is kept after it is copied. Favorites and
+/// pinboard items are never deleted.
+enum SecretLifetime: String, CaseIterable, Identifiable {
+    case never
+    #if DEBUG
+    /// Debug only, for testing.
+    case minute
+    #endif
+    case hour
+    case fiveHours
+    case twelveHours
+    case day
+    case week
+
+    var id: String { rawValue }
+
+    /// `nil` keeps it forever.
+    var interval: TimeInterval? {
+        switch self {
+        case .never: return nil
+        #if DEBUG
+        case .minute: return 60
+        #endif
+        case .hour: return 3_600
+        case .fiveHours: return 5 * 3_600
+        case .twelveHours: return 12 * 3_600
+        case .day: return 24 * 3_600
+        case .week: return 7 * 24 * 3_600
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .never: return "Never"
+        #if DEBUG
+        case .minute: return "1 Minute (Debug)"
+        #endif
+        case .hour: return "1 Hour"
+        case .fiveHours: return "5 Hours"
+        case .twelveHours: return "12 Hours"
+        case .day: return "24 Hours"
+        case .week: return "7 Days"
+        }
+    }
+}
+
 /// UserDefaults-backed app settings. Mutating `excludedBundleIDs` (directly or via
 /// `addExcludedApp`/`removeExcludedApp`) fires `onRulesChange` so the coordinator can
 /// push a fresh `RulesEngine` into the clipboard monitor.
@@ -109,6 +155,8 @@ final class SettingsStore {
     static let doubleClickToPasteKey = "doubleClickToPaste"
     static let copySoundKey = "copySound"
     static let hapticFeedbackKey = "hapticFeedback"
+    static let hideSecretsKey = "hideSecrets"
+    static let secretLifetimeKey = "secretLifetime"
 
     var retention: RetentionPeriod {
         didSet {
@@ -176,6 +224,27 @@ final class SettingsStore {
         }
     }
     @ObservationIgnored var onFloatingShelfChange: ((Bool) -> Void)?
+
+    /// Masks secrets on cards, previews and titles (`SecretDetector`). Display only: the
+    /// stored and pasted text is unchanged.
+    var hideSecrets: Bool {
+        didSet {
+            guard hideSecrets != oldValue else { return }
+            defaults.set(hideSecrets, forKey: Self.hideSecretsKey)
+            onHideSecretsChange?(hideSecrets)
+        }
+    }
+    @ObservationIgnored var onHideSecretsChange: ((Bool) -> Void)?
+
+    /// When items containing a secret are deleted. `.never` by default.
+    var secretLifetime: SecretLifetime {
+        didSet {
+            guard secretLifetime != oldValue else { return }
+            defaults.set(secretLifetime.rawValue, forKey: Self.secretLifetimeKey)
+            onSecretLifetimeChange?(secretLifetime)
+        }
+    }
+    @ObservationIgnored var onSecretLifetimeChange: ((SecretLifetime) -> Void)?
 
     /// Hides favorites presentation without deleting saved marks or retention protection.
     var favoritesEnabled: Bool {
@@ -282,6 +351,9 @@ final class SettingsStore {
         fetchLinkPreviews = (defaults.object(forKey: Self.fetchLinkPreviewsKey) as? Bool) ?? true
         recognizeImageText = (defaults.object(forKey: Self.recognizeImageTextKey) as? Bool) ?? true
         hideDuringScreenSharing = (defaults.object(forKey: Self.hideDuringScreenSharingKey) as? Bool) ?? false
+        hideSecrets = (defaults.object(forKey: Self.hideSecretsKey) as? Bool) ?? true
+        secretLifetime = defaults.string(forKey: Self.secretLifetimeKey)
+            .flatMap(SecretLifetime.init(rawValue:)) ?? .never
         favoritesEnabled = (defaults.object(forKey: Self.favoritesEnabledKey) as? Bool) ?? true
         floatingShelf = (defaults.object(forKey: Self.floatingShelfKey) as? Bool) ?? false
         compactShelf = (defaults.object(forKey: Self.compactShelfKey) as? Bool) ?? false

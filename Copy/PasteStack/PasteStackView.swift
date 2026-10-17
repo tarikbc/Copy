@@ -115,6 +115,7 @@ struct PasteStackView: View {
                         isNext: order[item.uuid] == 1,
                         isDragging: draggingUUID == item.uuid,
                         isEditable: isEditable(item),
+                        hideSecrets: model.hideSecrets,
                         onEdit: { onEdit(item) },
                         onRemove: { model.queue.remove(item.uuid) }
                     )
@@ -216,6 +217,7 @@ private struct PasteStackRow: View {
     let isNext: Bool
     var isDragging: Bool = false
     var isEditable: Bool = true
+    var hideSecrets: Bool = true
     let onEdit: () -> Void
     let onRemove: () -> Void
 
@@ -236,7 +238,7 @@ private struct PasteStackRow: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 16)
 
-            Text(item.displayTitle)
+            Text(item.displayTitle(hidingSecrets: hideSecrets))
                 .font(Tokens.bodyMono)
                 .lineLimit(1)
 

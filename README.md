@@ -53,7 +53,8 @@ including the text inside screenshots.
 - A callout names the board a dragged card will land in; reorder pinboards by dragging their tabs
 - Favorites keep starred cards at the front of the shelf, and can be switched off entirely
 - Search scoped to the active pinboard, or your whole history
-- Click a card's title to rename it in place; multi-select for bulk actions
+- Click a card's title to rename it in place; multi-select for bulk actions, or drag a
+  rectangle across cards to select them, like in Finder
 - Drawer-first: reach Settings, Updates, and every action from inside the shelf, and
   optionally hide the menu bar icon entirely
 
@@ -80,6 +81,8 @@ including the text inside screenshots.
 **Private by design**
 - Everything stays on your Mac. No account, no cloud sync, no telemetry
 - Respects the system concealed-type marker, so password managers are never recorded
+- Hides API keys, tokens, passwords and card numbers on cards until you reveal them, and can
+  delete those cards automatically a set time after you copy them (both optional)
 - Per-app exclusions, plus hide the shelf from screen recordings and shares
 - Configurable history retention; export and import your history as a single archive
 

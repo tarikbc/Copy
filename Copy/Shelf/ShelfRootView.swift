@@ -7,6 +7,11 @@ import UniformTypeIdentifiers
 struct ShelfRootView: View {
     @Bindable var viewModel: ShelfViewModel
     @State private var permissionBannerDismissed = false
+    /// Where the shelf's press-and-drag stands: a press on a card or tab is refused as a
+    /// drag-select for the rest of that drag, since it drags that card or tab instead.
+    @State private var sweepGesture = SweepGesture.idle
+
+    private enum SweepGesture { case idle, sweeping, refused }
     /// Persisted so the keyboard legend, once dismissed, stays gone. Read once here;
     /// `dismissLegend()` writes it back. Defaults to shown (false) for new users.
     @State private var legendDismissed = UserDefaults.standard.bool(forKey: Self.legendDismissedKey)
@@ -66,6 +71,25 @@ struct ShelfRootView: View {
         // PinboardTabFramesKey below.
         .coordinateSpace(name: "shelfRoot")
         .onPreferenceChange(PinboardTabFramesKey.self) { viewModel.pinboardTabFrames = $0 }
+        // Drag-select: press in the shelf's empty space — the card row or the header — and
+        // sweep over cards. A press on a card or a pinboard tab never starts one
+        // (`beginCardSweep` refuses it), so those keep their own click and drag. `.local`
+        // here is the "shelfRoot" space.
+        .gesture(
+            DragGesture(minimumDistance: 4, coordinateSpace: .local)
+                .onChanged { value in
+                    if sweepGesture == .idle {
+                        viewModel.beginCardSweep(at: value.startLocation, modifiers: NSEvent.modifierFlags)
+                        sweepGesture = viewModel.cardSweep.isActive ? .sweeping : .refused
+                    }
+                    if sweepGesture == .sweeping { viewModel.moveCardSweep(to: value.location) }
+                }
+                .onEnded { _ in
+                    if sweepGesture == .sweeping { viewModel.endCardSweep() }
+                    sweepGesture = .idle
+                }
+        )
+        .overlay { CardSweepRectangle(sweep: viewModel.cardSweep) }
         // Pops out of the tab under a card drag to name the board it will land in.
         .overlay {
             PinboardDropCalloutLayer(callout: viewModel.dropCallout,
@@ -539,6 +563,8 @@ private struct ShelfItemsRow: View {
                                 compact: compact,
                                 searchQuery: viewModel.searchQuery.text,
                                 isFlashing: viewModel.flashItemID == item.uuid,
+                                hideSecrets: viewModel.settings.hideSecrets,
+                                secretsRevealed: viewModel.revealedSecretIDs.contains(item.uuid),
                                 pasteNumber: (viewModel.optionHeld && index < 9) ? index + 1 : nil,
                                 canShowInHistory: !viewModel.searchQuery.isEmpty || currentPinboardID != nil,
                                 onClick: { modifiers in viewModel.handleCardClick(item, modifiers: modifiers) },
@@ -557,6 +583,7 @@ private struct ShelfItemsRow: View {
                                 onCommitInlineRename: { viewModel.commitInlineRename(item, to: $0) },
                                 onCancelInlineRename: { viewModel.cancelInlineRename() },
                                 onToggleFavorite: { viewModel.toggleFavorite(item) },
+                                onToggleSecrets: { viewModel.toggleSecretsRevealed(item) },
                                 onAddToPinboard: { id in viewModel.addItem(item, toPinboard: id) },
                                 onRemoveFromPinboard: {
                                     if let currentPinboardID {
@@ -575,6 +602,16 @@ private struct ShelfItemsRow: View {
                                 dragBadgeCount: viewModel.isSelected(item) ? viewModel.selection.selected.count : 1
                             )
                             .id(item.uuid)
+                            // Publish the card's frame so a drag-select can tell which
+                            // cards its rectangle touches (see `CardSweep`).
+                            .background(
+                                GeometryReader { geo in
+                                    Color.clear.preference(
+                                        key: CardFramesKey.self,
+                                        value: [item.uuid: geo.frame(in: .named(CardSweep.contentSpace))]
+                                    )
+                                }
+                            )
                             // The LazyHStack only builds a card once it scrolls into view,
                             // so this fires as the user nears the oldest card and widens the
                             // fetch window. Without it the shelf stopped at the first page.
@@ -589,7 +626,10 @@ private struct ShelfItemsRow: View {
                                 get: { viewModel.isSelected(item) && item.uuid == viewModel.selection.primary && viewModel.previewShown },
                                 set: { viewModel.previewShown = $0 }
                             )) {
-                                PreviewPane(item: item, store: viewModel.store)
+                                PreviewPane(item: item, store: viewModel.store,
+                                            hideSecrets: viewModel.settings.hideSecrets,
+                                            secretsRevealed: viewModel.revealedSecretIDs.contains(item.uuid),
+                                            onToggleSecrets: { viewModel.toggleSecretsRevealed(item) })
                             }
                         }
                     }
@@ -601,9 +641,25 @@ private struct ShelfItemsRow: View {
                     // enough to create the hit-testable NSView; `contentShape` alone (which
                     // affects gesture hit-testing, not AppKit scroll-wheel routing) wasn't.
                     .background(Color.black.opacity(0.001))
+                    // Gives the drag-select the row's scroll view, which it scrolls while
+                    // the pointer is held at an edge.
+                    .background(CardRowScrollViewFinder { viewModel.cardSweep.scrollView = $0 })
+                    .coordinateSpace(name: CardSweep.contentSpace)
+                    .onGeometryChange(for: CGPoint.self) {
+                        $0.frame(in: .named(CardSweep.viewportSpace)).origin
+                    } action: {
+                        viewModel.cardRowContentMoved(to: $0)
+                    }
                 }
+                .coordinateSpace(name: CardSweep.viewportSpace)
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("shelfRoot")) } action: {
+                    viewModel.cardSweep.viewportFrame = $0
+                }
+                .onPreferenceChange(CardFramesKey.self) { viewModel.cardSweep.cardFramesChanged($0) }
                 .onChange(of: viewModel.selection.primary) { _, newPrimary in
-                    if let newPrimary {
+                    // A sweep moves the primary with the pointer; centering on it would
+                    // scroll the row out from under the rectangle.
+                    if let newPrimary, !viewModel.cardSweep.isActive {
                         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
                             proxy.scrollTo(newPrimary, anchor: .center)
                         } else {

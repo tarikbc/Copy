@@ -69,9 +69,7 @@ private struct SearchHintPanel: View {
         }
         .padding(11)
         .frame(width: 274, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.regularMaterial)
-        )
+        .background(DropdownBackdrop(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 0.5)
@@ -143,10 +141,7 @@ private struct SuggestionsDropdown: View {
         }
         .padding(4)
         .frame(width: 240, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.regularMaterial)
-        )
+        .background(DropdownBackdrop(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 0.5)
@@ -196,5 +191,29 @@ private struct TokenIcon: View {
                 .foregroundStyle(tint)
                 .frame(width: size, height: size)
         }
+    }
+}
+
+/// The frosted backing of the search dropdowns (the hint panel and the suggestions list).
+/// They float over the cards, so this blurs the shelf's own content beneath them. SwiftUI's
+/// `Material` can't do that on macOS: it samples what is behind the window, so the panel
+/// showed the desktop or another app through the shelf instead of the cards under it.
+private struct DropdownBackdrop: NSViewRepresentable {
+    let cornerRadius: CGFloat
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .popover
+        view.blendingMode = .withinWindow
+        view.state = .active
+        view.wantsLayer = true
+        view.layer?.cornerRadius = cornerRadius
+        view.layer?.cornerCurve = .continuous
+        view.layer?.masksToBounds = true
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.layer?.cornerRadius = cornerRadius
     }
 }

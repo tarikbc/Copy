@@ -156,6 +156,9 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
     /// the panel's bottom edge, so this carries the same ~7% margin `shelfHeight` gives
     /// the standard card row.
     static let compactShelfHeight: CGFloat = 244
+    /// The close animation: how long it takes and how far the shelf sinks while it fades.
+    private static let closeDuration: TimeInterval = 0.2
+    private static let closeDrop: CGFloat = 26
 
     var onKeyEvent: ((NSEvent) -> Bool)?
     /// Called on every modifier-key change while the shelf is open (⌘-hold hints).
@@ -312,7 +315,7 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
         if let completion {
             pendingHideCompletions.append(completion)
         }
-        // A repeated action during the 180ms fade joins the current close instead of
+        // A repeated action during the close fade joins the current close instead of
         // being dropped or running before the destination app regains focus.
         guard !isHiding else { return }
         // Keep Copy active until the panel is fully out. On macOS 26 the shelf is live
@@ -321,7 +324,10 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
         isHiding = true
         removeKeyMonitor()
 
-        // Mirror of `show()`'s entrance: fade out while sliding down 18pt, then order out.
+        // The exit: the shelf dims as it sinks a short way, gathering speed, then orders
+        // out. Only the content view moves, clipped inside a window that stays put: sliding
+        // the window itself drags live glass across the screen and stutters, and in the
+        // floating shelf it would show on a display below this one.
         // Reduce Motion skips straight to the orderOut, matching the entrance's own gate.
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             finishHide(panel, restoreFocus: restoreFocus)
@@ -331,14 +337,11 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
         closeToken += 1
         let token = closeToken
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = floatingShelf ? 0.13 : 0.18
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            if floatingShelf {
-                shelfContentView(in: panel)?.animator().setFrameOrigin(NSPoint(x: 0, y: -panel.frame.height))
-            } else {
-                panel.animator().alphaValue = 0
-                panel.animator().setFrame(panel.frame.offsetBy(dx: 0, dy: -18), display: true)
-            }
+            context.duration = Self.closeDuration
+            // Accelerating, with no ease at the end: the shelf leaves, it doesn't settle.
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.4, 0, 1, 1)
+            panel.animator().alphaValue = 0
+            shelfContentView(in: panel)?.animator().setFrameOrigin(NSPoint(x: 0, y: -Self.closeDrop))
         } completionHandler: { [weak self] in
             // NSAnimationContext runs its completion on the main thread; the closure's
             // `@Sendable` type just can't see that statically.

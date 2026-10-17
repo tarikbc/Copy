@@ -565,6 +565,7 @@ public struct ItemStore {
             item.linkTitle = nil
             item.contentHash = hash
             item.sizeBytes = text.utf8.count
+            item.containsSecret = nil
             item.lastUsedAt = now
             try item.update(db)
             try insertRepresentations(
@@ -606,6 +607,7 @@ public struct ItemStore {
             item.linkTitle = nil
             item.contentHash = hash
             item.sizeBytes = plainText.utf8.count
+            item.containsSecret = nil
             item.lastUsedAt = now
             try item.update(db)
             try insertRepresentations(
@@ -660,6 +662,51 @@ public struct ItemStore {
             let doomedArray = Array(doomed)
             try deleteItems(ClipItem.filter(doomedArray.contains(Column("id"))), in: db)
             return doomedArray.count
+        }
+    }
+
+    /// Deletes items that contain a secret and were first copied before `cutoff`, sparing
+    /// favorites and pinboard members. Unchecked items (`containsSecret` NULL) are
+    /// classified first.
+    @discardableResult
+    public func pruneSecrets(olderThan cutoff: Date) throws -> Int {
+        try classifyUncheckedItems()
+        return try writer.write { db in
+            let doomed = try Int64.fetchAll(db, sql: """
+                SELECT id FROM item
+                WHERE containsSecret = true AND createdAt < ? AND isFavorite = false
+                AND id NOT IN (SELECT DISTINCT itemId FROM pinboard_item)
+                """, arguments: [cutoff])
+            guard !doomed.isEmpty else { return 0 }
+            try deleteItems(ClipItem.filter(doomed.contains(Column("id"))), in: db)
+            return doomed.count
+        }
+    }
+
+    /// Fills in `containsSecret` where it is NULL, in batches. Only text is scanned.
+    private func classifyUncheckedItems() throws {
+        let textKinds = [ItemKind.text, .richText, .link].map(\.rawValue)
+        try writer.write { db in
+            try db.execute(sql: """
+                UPDATE item SET containsSecret = false
+                WHERE containsSecret IS NULL AND (plainText IS NULL OR kind NOT IN (?, ?, ?))
+                """, arguments: StatementArguments(textKinds))
+        }
+        while true {
+            // One transaction per batch, so an edit can't slip in between.
+            let classified = try writer.write { db -> Int in
+                let rows = try Row.fetchAll(db, sql: """
+                    SELECT id, plainText FROM item WHERE containsSecret IS NULL LIMIT ?
+                    """, arguments: [Self.deleteChunkSize])
+                for row in rows {
+                    let id: Int64 = row["id"]
+                    let text: String = row["plainText"]
+                    try db.execute(sql: "UPDATE item SET containsSecret = ? WHERE id = ?",
+                                   arguments: [SecretDetector.scan(text), id])
+                }
+                return rows.count
+            }
+            if classified == 0 { break }
         }
     }
 

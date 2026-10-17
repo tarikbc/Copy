@@ -6,6 +6,10 @@ import UniformTypeIdentifiers
 struct PreviewPane: View {
     let item: ClipItem
     let store: ItemStore
+    /// Mask secrets in the text unless `secretsRevealed`.
+    var hideSecrets: Bool = false
+    var secretsRevealed: Bool = false
+    var onToggleSecrets: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var imagePixelSize: CGSize?
@@ -34,6 +38,13 @@ struct PreviewPane: View {
     /// the paste's actual size. Anything beyond the cap still renders (up to the
     /// existing 200k display cap below), just without color.
     private let highlightCap = 10_000
+    private static let displayCap = 200_000
+
+    /// Earns the preview its eye button.
+    private var hasSecret: Bool {
+        guard hideSecrets, let text = item.plainText else { return false }
+        return SecretDetector.maskedPrefix(text, count: Self.displayCap) != String(text.prefix(Self.displayCap))
+    }
 
     /// Builds the default-branch preview text: the same 200k-character display cap as
     /// before, with syntax colors applied to only the first `highlightCap` characters
@@ -41,7 +52,10 @@ struct PreviewPane: View {
     /// Any remainder past the highlighted portion still renders, just as plain mono
     /// text, exactly as the whole thing did before this feature existed.
     private func codeAwarePreviewText(_ text: String) -> Text {
-        let displayText = String(text.prefix(200_000))
+        // Masking keeps the length, so highlight tokens still line up.
+        let displayText = hideSecrets && !secretsRevealed
+            ? SecretDetector.maskedPrefix(text, count: Self.displayCap)
+            : String(text.prefix(Self.displayCap))
         let cap = min(displayText.count, highlightCap)
         let highlightPortion = String(displayText.prefix(cap))
         let highlight = CodeHighlightCache.shared.result(for: text, uuid: item.uuid, cap: cap)
@@ -79,6 +93,23 @@ struct PreviewPane: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                         .padding(14)
+                }
+                .overlay(alignment: .topTrailing) {
+                    if hasSecret {
+                        // Same pill as a card's hover actions.
+                        IconButton(systemName: secretsRevealed ? "eye.slash" : "eye",
+                                   fontSize: 11, size: CGSize(width: 22, height: 22),
+                                   help: secretsRevealed ? "Hide secrets" : "Show secrets",
+                                   action: onToggleSecrets)
+                            .padding(2)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(.regularMaterial)
+                                    .overlay(Capsule(style: .continuous)
+                                        .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 0.5))
+                            )
+                            .padding(8)
+                    }
                 }
             }
         }

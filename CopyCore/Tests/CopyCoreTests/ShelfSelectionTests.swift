@@ -34,6 +34,38 @@ final class ShelfSelectionTests: XCTestCase {
         XCTAssertEqual(sel.selected, ["a", "b"])
     }
 
+    func testSelectReplacesSelectionAndPrefersGivenPrimary() {
+        var sel = ShelfSelection()
+        sel.click("a")
+        sel.select(["c", "d", "e"], preferredPrimary: "d", in: order)
+        XCTAssertEqual(sel.selected, ["c", "d", "e"])
+        XCTAssertEqual(sel.primary, "d")
+    }
+
+    func testSelectKeepsPrimaryWhenStillSelected() {
+        var sel = ShelfSelection()
+        sel.click("c")
+        sel.select(["b", "c"], in: order)
+        XCTAssertEqual(sel.selected, ["b", "c"])
+        XCTAssertEqual(sel.primary, "c")
+    }
+
+    func testSelectFallsBackToFirstSelectedInOrder() {
+        var sel = ShelfSelection()
+        sel.click("a")
+        sel.select(["e", "c"], preferredPrimary: "b", in: order)
+        XCTAssertEqual(sel.selected, ["c", "e"])
+        XCTAssertEqual(sel.primary, "c")
+    }
+
+    func testSelectEmptySetChangesNothing() {
+        var sel = ShelfSelection()
+        sel.click("b")
+        sel.select([], in: order)
+        XCTAssertEqual(sel.selected, ["b"])
+        XCTAssertEqual(sel.primary, "b")
+    }
+
     func testMoveCollapsesAndClamps() {
         var sel = ShelfSelection()
         sel.click("b")

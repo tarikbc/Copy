@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 struct PrivacySettings: View {
     @Bindable var settings: SettingsStore
     @State private var selectedBundleID: String?
+    @State private var showingSecretLifetimeInfo = false
 
     var body: some View {
         Form {
@@ -16,6 +17,51 @@ struct PrivacySettings: View {
                 Text("Screen Sharing")
             } footer: {
                 Text("Keeps your clipboard history out of screen recordings and shared screens.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Hide Secrets", isOn: $settings.hideSecrets)
+            } header: {
+                Text("Secrets")
+            } footer: {
+                Text("Masks API keys, tokens, passwords and card numbers on cards and in previews. Pasting still uses the real value.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                LabeledContent {
+                    Picker("Delete Secrets After", selection: $settings.secretLifetime) {
+                        ForEach(SecretLifetime.allCases) { lifetime in
+                            Text(lifetime.title).tag(lifetime)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Delete Secrets After")
+                        Button {
+                            showingSecretLifetimeInfo.toggle()
+                        } label: {
+                            Image(systemName: "info.circle")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("How to keep a secret")
+                        .popover(isPresented: $showingSecretLifetimeInfo, arrowEdge: .bottom) {
+                            Text("To keep a card that has a secret, mark it as a favorite or file it on a pinboard. Favorites and pinboard items are never deleted automatically.")
+                                .font(.callout)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(width: 260, alignment: .leading)
+                                .padding(12)
+                        }
+                    }
+                }
+            } footer: {
+                Text(secretLifetimeFooter)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -60,6 +106,13 @@ struct PrivacySettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var secretLifetimeFooter: String {
+        if settings.secretLifetime == .never {
+            return "Cards with a secret are kept like any other card."
+        }
+        return "A card with an API key, token, password or card number is deleted \(settings.secretLifetime.title.lowercased()) after you copy it. Favorites and pinboard items are always kept."
     }
 
     private func excludedAppRow(_ bundleID: String) -> some View {
