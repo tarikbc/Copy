@@ -22,9 +22,107 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// `applyHideMenuBarIconSetting`. `nil` means no status item exists right now.
     private var statusItem: NSStatusItem?
     private var coordinator: AppCoordinator!
+    private var handlingExternalBatch = false
     private let updaterController = SPUStandardUpdaterController(startingUpdater: true,
                                                                    updaterDelegate: nil,
                                                                    userDriverDelegate: nil)
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(pasteStackPing(_:withReplyEvent:)),
+                                                      forEventClass: 0x43705374, andEventID: 0x70696e67)
+        NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(pasteStackBatch(_:withReplyEvent:)),
+                                                      forEventClass: 0x43705374, andEventID: 0x62617463)
+    }
+
+    @objc private func pasteStackPing(_ event: NSAppleEventDescriptor, withReplyEvent reply: NSAppleEventDescriptor) {
+        pasteStackReply(coordinator?.settings.allowsExternalPasteStackRequests() == true ? "capable" : "disabled", to: reply)
+    }
+
+    @objc private func pasteStackBatch(_ event: NSAppleEventDescriptor, withReplyEvent reply: NSAppleEventDescriptor) {
+        let wallTime = Date().timeIntervalSince1970
+        let uptime = ProcessInfo.processInfo.systemUptime
+        guard let payload = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject)),
+              payload.descriptorType == DescType(typeUTF8Text),
+              let descriptor = payload.aeDesc, AEGetDescDataSize(descriptor) <= 6_295_552,
+              let request = PasteStackBatchRequest.decode(payload.data, now: wallTime) else {
+            pasteStackReply("invalid", to: reply)
+            return
+        }
+        guard !request.isExpired(at: wallTime) else {
+            pasteStackReply("expired", to: reply)
+            return
+        }
+        pasteStackReply(acceptPasteStackBatch(request.items, caller: pasteStackCaller(from: event),
+                                              deadline: request.monotonicDeadline(wallTime: wallTime, uptime: uptime)), to: reply)
+    }
+
+    private func pasteStackReply(_ status: String, to reply: NSAppleEventDescriptor) {
+        let data = Data("{\"version\":1,\"status\":\"\(status)\"}".utf8)
+        guard let value = NSAppleEventDescriptor(descriptorType: DescType(typeUTF8Text), data: data) else { return }
+        reply.setParam(value, forKeyword: AEKeyword(keyDirectObject))
+    }
+
+    func requestPasteStackBatch(_ texts: [String]) -> Bool {
+        acceptPasteStackBatch(texts, caller: nil) == "accepted"
+    }
+
+    private func acceptPasteStackBatch(_ texts: [String], caller: PasteStackCaller?,
+                                       deadline: TimeInterval? = nil) -> String {
+        func expired() -> Bool {
+            deadline.map { ProcessInfo.processInfo.systemUptime >= $0 } ?? false
+        }
+        guard !expired() else { return "expired" }
+        guard !handlingExternalBatch, coordinator != nil else { return "busy" }
+        guard coordinator.settings.allowsExternalPasteStackRequests() else { return "disabled" }
+        var probe = PasteStackQueue()
+        guard probe.replaceWithBatch(texts) else { return "invalid" }
+        handlingExternalBatch = true
+        defer { handlingExternalBatch = false }
+        while !expired() {
+            let trusted = caller.map { caller in
+                coordinator.settings.pasteStackPermissions.contains { $0.permits(caller) }
+            } ?? false
+            let previous = coordinator.pasteStackSnapshot
+            var rememberPermission: PasteStackPermission?
+            if !trusted || !previous.isEmpty {
+                let signed: PasteStackPermission?
+                if let caller, let signingID = caller.signingID, let certificate = caller.certificateSHA256 {
+                    signed = .signed(bundleID: caller.bundleID, signingID: signingID, certificateSHA256: certificate)
+                } else {
+                    signed = nil
+                }
+                let alert = pasteStackBatchConfirmation(texts, hideSecrets: coordinator.settings.hideSecrets,
+                                                        hideDuringScreenSharing: coordinator.settings.hideDuringScreenSharing,
+                                                        caller: pasteStackCallerDescription(caller),
+                                                        canRemember: !trusted && signed != nil,
+                                                        hasExistingItems: !previous.isEmpty)
+                NSApp.activate(ignoringOtherApps: true)
+                let decision = alert.runModal()
+                guard decision == .alertSecondButtonReturn || (signed != nil && decision == .alertThirdButtonReturn) else {
+                    return "cancelled"
+                }
+                guard !expired() else { return "expired" }
+                if decision == .alertThirdButtonReturn { rememberPermission = signed }
+            }
+            guard !expired() else { return "expired" }
+            guard coordinator.settings.allowsExternalPasteStackRequests() else { return "disabled" }
+            if trusted, let caller,
+               !coordinator.settings.pasteStackPermissions.contains(where: { $0.permits(caller) }) { continue }
+            guard coordinator.replacePasteStack(with: texts, ifUnchanged: previous) else { continue }
+            if let permission = rememberPermission,
+               !coordinator.settings.pasteStackPermissions.contains(permission) {
+                if !coordinator.settings.setPasteStackPermissions(coordinator.settings.pasteStackPermissions + [permission]) {
+                    let alert = NSAlert()
+                    alert.messageText = "Could not remember this app"
+                    alert.informativeText = "The request was accepted, but Keychain access was unavailable. Future requests will ask for approval."
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
+            }
+            return "accepted"
+        }
+        return "expired"
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {

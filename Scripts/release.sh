@@ -77,6 +77,7 @@ SCHEME="Copy"
 PROJECT="Copy.xcodeproj"
 TEAM_ID="P7V47BUA2B"
 SIGN_IDENTITY="Developer ID Application"
+: "${COPY_PROVISIONING_PROFILE:?Set COPY_PROVISIONING_PROFILE to the Developer ID provisioning profile UUID}"
 NOTARY_PROFILE="${COPY_NOTARY_PROFILE:-copy-notary}"
 GITHUB_REPO="tarikbc/Copy"
 
@@ -125,6 +126,7 @@ xcodebuild archive \
   CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
   CODE_SIGN_STYLE=Manual \
   DEVELOPMENT_TEAM="$TEAM_ID" \
+  PROVISIONING_PROFILE_SPECIFIER="$COPY_PROVISIONING_PROFILE" \
   OTHER_CODE_SIGN_FLAGS="--timestamp"
 
 step "3/9 Writing $EXPORT_OPTIONS_PLIST"
@@ -139,6 +141,11 @@ cat > "$EXPORT_OPTIONS_PLIST" <<PLIST
     <string>${TEAM_ID}</string>
     <key>signingStyle</key>
     <string>manual</string>
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.tarikbc.Copy</key>
+        <string>${COPY_PROVISIONING_PROFILE}</string>
+    </dict>
     <key>signingCertificate</key>
     <string>${SIGN_IDENTITY}</string>
 </dict>
@@ -188,7 +195,7 @@ sign_one() {
   local path="$1"
   echo "    codesign: $path"
   codesign --force --sign "$SIGN_IDENTITY" \
-    --options runtime --timestamp \
+    --preserve-metadata=entitlements --options runtime --timestamp \
     "$path"
 }
 

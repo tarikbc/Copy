@@ -142,3 +142,22 @@ struct CopyShortcuts: AppShortcutsProvider {
         )
     }
 }
+
+struct AddTextToPasteStackIntent: AppIntent {
+    static var title: LocalizedStringResource = "Add Text to Paste Stack"
+    static var description: IntentDescription? = IntentDescription(
+        "Requests permission to replace the Paste Stack with text items.")
+    static var openAppWhenRun = true
+
+    @Parameter(title: "Text Items")
+    var texts: [String]
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        guard let delegate = NSApp.delegate as? AppDelegate,
+              delegate.requestPasteStackBatch(texts) else {
+            return .result(dialog: "The Paste Stack was not changed.")
+        }
+        return .result(dialog: "Added text to Paste Stack.")
+    }
+}
