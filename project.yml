@@ -69,6 +69,7 @@ targets:
     sources:
       - CopyTests
       - Copy/PasteStack/PasteStackModel.swift
+      - Copy/Shelf/ShelfWheelScroll.swift
     dependencies:
       - package: CopyCore
     settings:
