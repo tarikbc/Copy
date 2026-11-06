@@ -644,6 +644,7 @@ private struct ShelfItemsRow: View {
                     // Gives the drag-select the row's scroll view, which it scrolls while
                     // the pointer is held at an edge.
                     .background(CardRowScrollViewFinder { viewModel.cardSweep.scrollView = $0 })
+                    .background(ShelfWheelScrollBridge())
                     .coordinateSpace(name: CardSweep.contentSpace)
                     .onGeometryChange(for: CGPoint.self) {
                         $0.frame(in: .named(CardSweep.viewportSpace)).origin

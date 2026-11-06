@@ -71,6 +71,7 @@ targets:
     sources:
       - CopyTests
       - Copy/PasteStack/PasteStackModel.swift
+      - Copy/Shelf/ShelfWheelScroll.swift
       - Copy/PasteStack/PasteStackBatchConfirmation.swift
     dependencies:
       - package: CopyCore
