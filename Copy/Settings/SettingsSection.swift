@@ -8,6 +8,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     case shortcuts
     case history
     case privacy
+    case permissions
     case about
 
     var id: String { rawValue }
@@ -18,6 +19,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .shortcuts: return "Shortcuts"
         case .history: return "History"
         case .privacy: return "Privacy"
+        case .permissions: return "Permissions"
         case .about: return "About"
         }
     }
@@ -28,6 +30,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .shortcuts: return "keyboard"
         case .history: return "clock"
         case .privacy: return "hand.raised"
+        case .permissions: return "lock.shield"
         case .about: return "info.circle"
         }
     }
@@ -40,6 +43,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .shortcuts: return .blue
         case .history: return .orange
         case .privacy: return .red
+        case .permissions: return .purple
         case .about: return Tokens.electricBlue
         }
     }
@@ -51,6 +55,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .shortcuts: return "Set the keys that summon Copy and paste for you."
         case .history: return "How long items are kept and what Copy enriches."
         case .privacy: return "Keep sensitive apps and shared screens out of history."
+        case .permissions: return "Manage apps allowed to send items to Paste Stack."
         case .about: return "Version, updates, and project links."
         }
     }

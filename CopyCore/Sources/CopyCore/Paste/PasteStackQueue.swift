@@ -15,6 +15,19 @@ public struct PasteStackQueue: Equatable, Sendable {
         }
     }
 
+    public mutating func replaceWithBatch(_ texts: [String]) -> Bool {
+        guard !texts.isEmpty, texts.count <= 100 else { return false }
+        var bytes = 0
+        for text in texts {
+            guard !text.isEmpty, text.utf8.count <= 1_048_576 - bytes else { return false }
+            bytes += text.utf8.count
+        }
+        clear()
+        isLIFO = false
+        enqueueTexts(texts)
+        return true
+    }
+
     public func temporaryEntry(for uuid: String) -> PasteStackTextEntry? {
         temporaryEntries[uuid]
     }

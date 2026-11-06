@@ -1,4 +1,5 @@
 import AppKit
+import CopyCore
 import Foundation
 import Observation
 
@@ -157,6 +158,7 @@ final class SettingsStore {
     static let hapticFeedbackKey = "hapticFeedback"
     static let hideSecretsKey = "hideSecrets"
     static let secretLifetimeKey = "secretLifetime"
+    static let pasteStackExternalAccessKey = "pasteStackExternalAccessEnabled"
 
     var retention: RetentionPeriod {
         didSet {
@@ -177,6 +179,34 @@ final class SettingsStore {
             guard recognizeImageText != oldValue else { return }
             defaults.set(recognizeImageText, forKey: Self.recognizeImageTextKey)
         }
+    }
+
+    var pasteStackExternalAccessEnabled: Bool {
+        didSet { defaults.set(pasteStackExternalAccessEnabled, forKey: Self.pasteStackExternalAccessKey) }
+    }
+
+    @ObservationIgnored private var pasteStackAccess: PasteStackExternalAccess!
+    private var pasteStackPermissionsRevision = 0
+
+    var pasteStackPermissions: [PasteStackPermission] {
+        _ = pasteStackPermissionsRevision
+        return pasteStackAccess.permissions()
+    }
+
+    func setPasteStackPermissions(_ permissions: [PasteStackPermission]) -> Bool {
+        guard pasteStackAccess.setPermissions(permissions) else { return false }
+        pasteStackPermissionsRevision += 1
+        return true
+    }
+
+    func allowsExternalPasteStackRequests() -> Bool {
+        pasteStackExternalAccessEnabled && pasteStackAccess.permitsRequests()
+    }
+
+    func setExternalPasteStackAccess(_ enabled: Bool) -> Bool {
+        let success = enabled ? pasteStackAccess.enable() : pasteStackAccess.disable()
+        if success { pasteStackExternalAccessEnabled = enabled }
+        return success
     }
 
     var excludedBundleIDs: [String] {
@@ -348,6 +378,7 @@ final class SettingsStore {
         } else {
             retention = .unlimited
         }
+        pasteStackExternalAccessEnabled = defaults.bool(forKey: Self.pasteStackExternalAccessKey)
         fetchLinkPreviews = (defaults.object(forKey: Self.fetchLinkPreviewsKey) as? Bool) ?? true
         recognizeImageText = (defaults.object(forKey: Self.recognizeImageTextKey) as? Bool) ?? true
         hideDuringScreenSharing = (defaults.object(forKey: Self.hideDuringScreenSharingKey) as? Bool) ?? false
@@ -382,6 +413,9 @@ final class SettingsStore {
         } else {
             excludedBundleIDs = []
         }
+            pasteStackAccess = PasteStackExternalAccess(enabled: pasteStackExternalAccessEnabled,
+                                                    read: PasteStackAccessKeychain.read,
+                                                    write: PasteStackAccessKeychain.write)
     }
 
     func addExcludedApp(bundleID: String) {
