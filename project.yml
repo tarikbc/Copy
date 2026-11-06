@@ -64,6 +64,10 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Copy/Copy.entitlements
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: P7V47BUA2B
+        # Empty in local builds (automatic signing). Scripts/release.sh sets
+        # COPY_PROVISIONING_PROFILE so only this target gets the Developer ID
+        # profile; Swift package targets refuse a provisioning profile.
+        PROVISIONING_PROFILE_SPECIFIER: "$(COPY_PROVISIONING_PROFILE)"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   CopyTests:
     type: bundle.unit-test
