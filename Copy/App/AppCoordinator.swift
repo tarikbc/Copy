@@ -755,6 +755,12 @@ final class AppCoordinator {
     /// `AppDelegate` to reflect a checkmark on the "Paste Stack" menu item.
     var isPasteStackActive: Bool { pasteStackModel.isActive }
 
+    var pasteStackSnapshot: PasteStackQueue { pasteStackModel.queue }
+
+    func replacePasteStack(with texts: [String], ifUnchanged previous: PasteStackQueue) -> Bool {
+        pasteStackModel.replaceWithBatch(texts, ifUnchanged: previous)
+    }
+
     /// Flips the Paste Stack on or off. All activation/deactivation — the palette, the
     /// CGEvent tap, and the `.pasteNextFromStack` fallback hotkey — fans out from
     /// `pasteStackModel.isActive`'s `didSet`, wired to `onActiveChange` in `init()`.

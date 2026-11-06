@@ -2,6 +2,43 @@ import XCTest
 @testable import CopyCore
 
 final class PasteStackTemporaryTests: XCTestCase {
+    func testBatchReplacesExistingQueueAndPastesDuplicateTextsInFIFOOrder() throws {
+        var queue = PasteStackQueue()
+        queue.enqueue("history")
+        queue.isLIFO = true
+        XCTAssertTrue(queue.replaceWithBatch(["one", "same", "same"]))
+        XCTAssertFalse(queue.isLIFO)
+        XCTAssertEqual(queue.count, 3)
+        XCTAssertEqual(queue.itemUUIDs.compactMap { queue.temporaryEntry(for: $0)?.text }, ["one", "same", "same"])
+        XCTAssertEqual(Set(queue.itemUUIDs).count, 3)
+        for text in ["one", "same", "same"] {
+            let next = try XCTUnwrap(queue.next)
+            XCTAssertEqual(queue.temporaryEntry(for: next)?.text, text)
+            queue.advance()
+        }
+    }
+
+    func testInvalidBatchDoesNotAlterQueue() {
+        var queue = PasteStackQueue()
+        queue.enqueue("existing")
+        for batch in [[], [""], Array(repeating: "x", count: 101), [String(repeating: "a", count: 1_048_577)]] {
+            XCTAssertFalse(queue.replaceWithBatch(batch))
+            XCTAssertEqual(queue.itemUUIDs, ["existing"])
+        }
+    }
+
+    func testBatchBoundsUseUTF8BytesAndAllowExactLimits() {
+        var queue = PasteStackQueue()
+        XCTAssertTrue(queue.replaceWithBatch(Array(repeating: "x", count: 100)))
+        XCTAssertEqual(queue.count, 100)
+        XCTAssertTrue(queue.replaceWithBatch([String(repeating: "é", count: 524_288)]))
+        let previous = queue.itemUUIDs
+        XCTAssertFalse(queue.replaceWithBatch([String(repeating: "é", count: 524_289)]))
+        XCTAssertEqual(queue.itemUUIDs, previous)
+        XCTAssertFalse(queue.replaceWithBatch([String(repeating: "x", count: 1_048_576), "x"]))
+        XCTAssertEqual(queue.itemUUIDs, previous)
+    }
+
     func testTemporaryDuplicatesHaveSeparateIdentitiesAndNoHistoryID() throws {
         var queue = PasteStackQueue()
         queue.enqueueTexts(["same", "same"])

@@ -51,6 +51,8 @@ struct SettingsView: View {
             pane(.history) { HistorySettings(settings: settings, store: store) }
         case .privacy:
             pane(.privacy) { PrivacySettings(settings: settings) }
+        case .permissions:
+            pane(.permissions) { PermissionsSettings(settings: settings) }
         case .about:
             AboutSettings(settings: settings)
         }

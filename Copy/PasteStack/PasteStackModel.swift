@@ -109,6 +109,17 @@ final class PasteStackModel {
         if !isActive { isActive = true }
     }
 
+    func replaceWithBatch(_ texts: [String]) -> Bool {
+        guard queue.replaceWithBatch(texts) else { return false }
+        if !isActive { isActive = true }
+        return true
+    }
+
+    func replaceWithBatch(_ texts: [String], ifUnchanged previous: PasteStackQueue) -> Bool {
+        guard queue == previous else { return false }
+        return replaceWithBatch(texts)
+    }
+
     /// Advances the queue and resolves representations for the next item, skipping
     /// (and retrying) any uuid whose item or representations have gone missing since
     /// being queued. Returns `nil` once the queue is exhausted. Unlike `items()`, this
