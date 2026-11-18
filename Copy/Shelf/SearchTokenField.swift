@@ -10,6 +10,9 @@ struct SearchTokenField: View {
     @Bindable var viewModel: ShelfViewModel
     var placeholder: String
     @FocusState.Binding var focused: Bool
+    /// The mini shelf is too narrow for the hint panel, and its suggestions take the
+    /// field's own width.
+    var fitsDropdownToField = false
 
     private var textBinding: Binding<String> {
         Binding(get: { viewModel.searchQuery.text },
@@ -39,9 +42,9 @@ struct SearchTokenField: View {
         )
         .overlay(alignment: .topLeading) {
             if viewModel.suggestionsVisible {
-                SuggestionsDropdown(viewModel: viewModel)
+                SuggestionsDropdown(viewModel: viewModel, width: fitsDropdownToField ? nil : 240)
                     .offset(y: 36)
-            } else if focused && viewModel.searchQuery.text.isEmpty {
+            } else if focused && viewModel.searchQuery.text.isEmpty && !fitsDropdownToField {
                 // Discovery: what you can type. Informational only (no keyboard capture), so
                 // ⏎ still pastes the selected card while this is showing.
                 SearchHintPanel()
@@ -129,6 +132,8 @@ private struct SearchPill: View {
 /// by `AppCoordinator.onKeyEvent`) is filled with the accent color.
 private struct SuggestionsDropdown: View {
     @Bindable var viewModel: ShelfViewModel
+    /// nil fills the field's width.
+    var width: CGFloat?
 
     var body: some View {
         VStack(spacing: 1) {
@@ -140,7 +145,8 @@ private struct SuggestionsDropdown: View {
             }
         }
         .padding(4)
-        .frame(width: 240, alignment: .leading)
+        .frame(width: width, alignment: .leading)
+        .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
         .background(DropdownBackdrop(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -198,7 +204,7 @@ private struct TokenIcon: View {
 /// They float over the cards, so this blurs the shelf's own content beneath them. SwiftUI's
 /// `Material` can't do that on macOS: it samples what is behind the window, so the panel
 /// showed the desktop or another app through the shelf instead of the cards under it.
-private struct DropdownBackdrop: NSViewRepresentable {
+struct DropdownBackdrop: NSViewRepresentable {
     let cornerRadius: CGFloat
 
     func makeNSView(context: Context) -> NSVisualEffectView {

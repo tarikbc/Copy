@@ -42,6 +42,38 @@ struct ShelfRootView: View {
     }
 
     var body: some View {
+        Group {
+            if viewModel.isMiniShelf {
+                MiniShelfView(viewModel: viewModel)
+            } else {
+                fullShelf
+            }
+        }
+        // Drags onto the pinboard tabs (cards to file, tabs to reorder) are taken by the
+        // hosting view in AppKit, not by a SwiftUI `.onDrop` (see `ShelfHostingView`). It
+        // maps the pointer to a tab using each tab's frame, collected via
+        // PinboardTabFramesKey below.
+        .coordinateSpace(name: "shelfRoot")
+        .onPreferenceChange(PinboardTabFramesKey.self) { viewModel.pinboardTabFrames = $0 }
+        // Pops out of the tab under a card drag to name the board it will land in.
+        .overlay {
+            PinboardDropCalloutLayer(callout: viewModel.dropCallout,
+                                     pinboards: viewModel.pinboards,
+                                     tabFrames: viewModel.pinboardTabFrames,
+                                     vertical: viewModel.isMiniShelf)
+        }
+        // Pro-dark: force the marketing electric-blue accent regardless of the system
+        // accent color. The forced dark appearance itself is set on the panel window in
+        // `ShelfPanelController`, which cascades to this hosted content.
+        .tint(viewModel.settings.shelfTheme == .dark ? Tokens.electricBlue : nil)
+        // Edit/Create/Adjust Color/Tips are shown as a centered child window over the
+        // shelf (see `ShelfModalHostView`), not as attached sheets that overflow off the
+        // bottom of the screen. This view is always on screen while the shelf is open, so
+        // it reliably drives the host window's show/hide as the modal state changes.
+        .onChange(of: hasActiveModal) { _, active in viewModel.onModalPresent?(active) }
+    }
+
+    private var fullShelf: some View {
         VStack(spacing: 0) {
             if showsPermissionBanner {
                 PermissionBanner(onDismiss: { permissionBannerDismissed = true })
@@ -65,12 +97,6 @@ struct ShelfRootView: View {
             topTrailingRadius: 12,
             style: .continuous
         ))
-        // Drags onto the pinboard tabs (cards to file, tabs to reorder) are taken by the
-        // hosting view in AppKit, not by a SwiftUI `.onDrop` (see `ShelfHostingView`). It
-        // maps the pointer to a tab using each tab's frame, collected via
-        // PinboardTabFramesKey below.
-        .coordinateSpace(name: "shelfRoot")
-        .onPreferenceChange(PinboardTabFramesKey.self) { viewModel.pinboardTabFrames = $0 }
         // Drag-select: press in the shelf's empty space — the card row or the header — and
         // sweep over cards. A press on a card or a pinboard tab never starts one
         // (`beginCardSweep` refuses it), so those keep their own click and drag. `.local`
@@ -90,21 +116,6 @@ struct ShelfRootView: View {
                 }
         )
         .overlay { CardSweepRectangle(sweep: viewModel.cardSweep) }
-        // Pops out of the tab under a card drag to name the board it will land in.
-        .overlay {
-            PinboardDropCalloutLayer(callout: viewModel.dropCallout,
-                                     pinboards: viewModel.pinboards,
-                                     tabFrames: viewModel.pinboardTabFrames)
-        }
-        // Pro-dark: force the marketing electric-blue accent regardless of the system
-        // accent color. The forced dark appearance itself is set on the panel window in
-        // `ShelfPanelController`, which cascades to this hosted content.
-        .tint(viewModel.settings.shelfTheme == .dark ? Tokens.electricBlue : nil)
-        // Edit/Create/Adjust Color/Tips are shown as a centered child window over the
-        // shelf (see `ShelfModalHostView`), not as attached sheets that overflow off the
-        // bottom of the screen. This view is always on screen while the shelf is open, so
-        // it reliably drives the host window's show/hide as the modal state changes.
-        .onChange(of: hasActiveModal) { _, active in viewModel.onModalPresent?(active) }
     }
 
     private var hasActiveModal: Bool {
@@ -117,7 +128,7 @@ struct ShelfRootView: View {
 /// existing material) shown while Accessibility isn't granted, since without it
 /// `AppCoordinator.pasteFromShelf` can only place the item on the clipboard rather
 /// than actually paste it into the frontmost app.
-private struct PermissionBanner: View {
+struct PermissionBanner: View {
     let onDismiss: () -> Void
 
     var body: some View {
@@ -182,30 +193,41 @@ private struct ShelfHeader: View {
         }
         .padding(.horizontal, Tokens.shelfPadding)
         .padding(.vertical, 8)
-        // Not auto-focused on open — the shelf opens in browse mode. Keep the view model in
-        // sync with the field's focus, and honor a focus request from the key handler
-        // (type-to-search).
-        .onChange(of: searchFocused) { _, focused in viewModel.isSearchFieldFocused = focused }
-        .onChange(of: viewModel.endSearchEditingRequested) { _, requested in
-            if requested {
-                searchFocused = false
-                viewModel.endSearchEditingRequested = false
+        // Not auto-focused on open — the shelf opens in browse mode.
+        .modifier(SearchFocusSync(viewModel: viewModel, focused: $searchFocused))
+    }
+}
+
+/// Keeps the view model in sync with the search field's focus, and honors its requests to
+/// focus the field (type-to-search) or leave it (a click elsewhere). Shared by the full
+/// shelf's header and the mini shelf's search row.
+struct SearchFocusSync: ViewModifier {
+    let viewModel: ShelfViewModel
+    @FocusState.Binding var focused: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: focused) { _, focused in viewModel.isSearchFieldFocused = focused }
+            .onChange(of: viewModel.endSearchEditingRequested) { _, requested in
+                if requested {
+                    focused = false
+                    viewModel.endSearchEditingRequested = false
+                }
             }
-        }
-        .onChange(of: viewModel.focusSearchRequested) { _, requested in
-            if requested {
-                searchFocused = true
-                viewModel.focusSearchRequested = false
-                // Focusing select-alls the field, so the letter that started the search
-                // would be replaced by the next keystroke. Move the caret to the end once
-                // focus lands (type-to-search only — a manual click keeps its position).
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-                    if let editor = NSApp.keyWindow?.firstResponder as? NSTextView {
-                        editor.selectedRange = NSRange(location: editor.string.count, length: 0)
+            .onChange(of: viewModel.focusSearchRequested) { _, requested in
+                if requested {
+                    focused = true
+                    viewModel.focusSearchRequested = false
+                    // Focusing select-alls the field, so the letter that started the search
+                    // would be replaced by the next keystroke. Move the caret to the end once
+                    // focus lands (type-to-search only — a manual click keeps its position).
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                        if let editor = NSApp.keyWindow?.firstResponder as? NSTextView {
+                            editor.selectedRange = NSRange(location: editor.string.count, length: 0)
+                        }
                     }
                 }
             }
-        }
     }
 }
 
@@ -695,7 +717,7 @@ private struct FavoritesDivider: View {
 }
 
 /// Empty state for the items row, tailored to the active tab and search state.
-private struct ShelfEmptyState: View {
+struct ShelfEmptyState: View {
     let viewModel: ShelfViewModel
 
     private var symbolName: String {

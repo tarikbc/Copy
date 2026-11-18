@@ -49,6 +49,45 @@ enum ShelfTheme: String, CaseIterable, Identifiable {
     }
 }
 
+/// Which shelf the Open Copy hotkey opens: the full-width shelf at the screen's edge, or
+/// the mini shelf above the text cursor.
+enum ShelfMode: String, CaseIterable, Identifiable {
+    case full, mini
+    var id: Self { self }
+    var title: String { self == .full ? "Full" : "Mini" }
+    var other: ShelfMode { self == .full ? .mini : .full }
+}
+
+/// The mini shelf's three sizes, and how many lines of each card's text they show.
+enum MiniShelfSize: String, CaseIterable, Identifiable {
+    case small, medium, large
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .small: return "Small"
+        case .medium: return "Medium"
+        case .large: return "Large"
+        }
+    }
+
+    var size: CGSize {
+        switch self {
+        case .small: return CGSize(width: 280, height: 320)
+        case .medium: return CGSize(width: 340, height: 400)
+        case .large: return CGSize(width: 400, height: 480)
+        }
+    }
+
+    var previewLines: Int {
+        switch self {
+        case .small: return 1
+        case .medium: return 2
+        case .large: return 3
+        }
+    }
+}
+
 /// How long unfavorited, unpinned history items are kept before pruning.
 enum RetentionPeriod: String, CaseIterable {
     case unlimited
@@ -159,6 +198,8 @@ final class SettingsStore {
     static let hideSecretsKey = "hideSecrets"
     static let secretLifetimeKey = "secretLifetime"
     static let pasteStackExternalAccessKey = "pasteStackExternalAccessEnabled"
+    static let shelfModeKey = "shelfMode"
+    static let miniShelfSizeKey = "miniShelfSize"
 
     var retention: RetentionPeriod {
         didSet {
@@ -254,6 +295,26 @@ final class SettingsStore {
         }
     }
     @ObservationIgnored var onFloatingShelfChange: ((Bool) -> Void)?
+
+    /// Which shelf the Open Copy hotkey opens. Full by default. The other one has its own
+    /// optional hotkey (`KeyboardShortcuts.Name.toggleAlternateShelf`).
+    var shelfMode: ShelfMode {
+        didSet {
+            guard shelfMode != oldValue else { return }
+            defaults.set(shelfMode.rawValue, forKey: Self.shelfModeKey)
+        }
+    }
+
+    /// Pushed to the panel controller by `onMiniShelfSizeChange`, which resizes an open
+    /// mini shelf in place.
+    var miniShelfSize: MiniShelfSize {
+        didSet {
+            guard miniShelfSize != oldValue else { return }
+            defaults.set(miniShelfSize.rawValue, forKey: Self.miniShelfSizeKey)
+            onMiniShelfSizeChange?(miniShelfSize)
+        }
+    }
+    @ObservationIgnored var onMiniShelfSizeChange: ((MiniShelfSize) -> Void)?
 
     /// Masks secrets on cards, previews and titles (`SecretDetector`). Display only: the
     /// stored and pasted text is unchanged.
@@ -388,6 +449,9 @@ final class SettingsStore {
         favoritesEnabled = (defaults.object(forKey: Self.favoritesEnabledKey) as? Bool) ?? true
         floatingShelf = (defaults.object(forKey: Self.floatingShelfKey) as? Bool) ?? false
         compactShelf = (defaults.object(forKey: Self.compactShelfKey) as? Bool) ?? false
+        shelfMode = defaults.string(forKey: Self.shelfModeKey).flatMap(ShelfMode.init(rawValue:)) ?? .full
+        miniShelfSize = defaults.string(forKey: Self.miniShelfSizeKey)
+            .flatMap(MiniShelfSize.init(rawValue:)) ?? .medium
         if let raw = defaults.string(forKey: Self.shelfThemeKey), let saved = ShelfTheme(rawValue: raw) {
             shelfTheme = saved
         } else {

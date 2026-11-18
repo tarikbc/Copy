@@ -159,6 +159,8 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
     /// The close animation: how long it takes and how far the shelf sinks while it fades.
     private static let closeDuration: TimeInterval = 0.2
     private static let closeDrop: CGFloat = 26
+    /// How far the mini shelf travels toward or away from the cursor as it opens and closes.
+    private static let miniTravel: CGFloat = 8
 
     var onKeyEvent: ((NSEvent) -> Bool)?
     /// Called on every modifier-key change while the shelf is open (⌘-hold hints).
@@ -188,13 +190,21 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
     private var floatingShelf: Bool
     private var compactShelf: Bool
     private var theme: ShelfTheme
+    /// Which shelf is showing, or showed last.
+    private(set) var mode: ShelfMode = .full
+    private var miniShelfSize: CGSize
+    /// What the open mini shelf is placed against (the caret, or the pointer), kept so a
+    /// size change can re-place it, and which side of it the shelf opened on.
+    private var miniAnchor: CGRect?
+    private var miniOpensBelow = false
 
     init(hideDuringScreenSharing: Bool, compactShelf: Bool, theme: ShelfTheme,
-         floatingShelf: Bool, makeContent: @escaping () -> NSView) {
+         floatingShelf: Bool, miniShelfSize: CGSize, makeContent: @escaping () -> NSView) {
         self.hideDuringScreenSharing = hideDuringScreenSharing
         self.compactShelf = compactShelf
         self.theme = theme
         self.floatingShelf = floatingShelf
+        self.miniShelfSize = miniShelfSize
         self.makeContent = makeContent
     }
 
@@ -225,7 +235,7 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
     /// mirrors `setHideDuringScreenSharing`'s live-update shape above.
     func setCompactShelf(_ compact: Bool) {
         compactShelf = compact
-        guard isVisible, let panel,
+        guard isVisible, mode == .full, let panel,
               let screen = NSScreen.screens.first(where: {
                   NSMouseInRect(NSEvent.mouseLocation, $0.frame, false)
               }) ?? NSScreen.main else { return }
@@ -235,24 +245,36 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
 
     func setFloatingShelf(_ floating: Bool) {
         floatingShelf = floating
-        guard let panel, panel.isVisible, !isHiding, let screen = panel.screen else { return }
+        guard mode == .full, let panel, panel.isVisible, !isHiding, let screen = panel.screen else { return }
         setShelfContentOffset(0, in: panel)
         panel.setFrame(ShelfLayout.frame(visibleFrame: screen.visibleFrame,
                                         height: currentShelfHeight, floating: floating), display: true)
     }
 
-    var isVisible: Bool { panel?.isVisible ?? false }
-
-    func toggle() {
-        isVisible ? hide(restoreFocus: true) : show()
+    /// Re-places an open mini shelf at its new size, against the same anchor.
+    func setMiniShelfSize(_ size: CGSize) {
+        miniShelfSize = size
+        guard mode == .mini, let panel, panel.isVisible, !isHiding, let anchor = miniAnchor,
+              let screen = panel.screen else { return }
+        let placement = MiniShelfLayout.placement(size: size, anchor: anchor, visibleFrame: screen.visibleFrame)
+        miniOpensBelow = placement.opensBelow
+        panel.setFrame(placement.frame, display: true)
     }
 
-    func show() {
+    var isVisible: Bool { panel?.isVisible ?? false }
+
+    func show(mode: ShelfMode) {
         previousApp = NSWorkspace.shared.frontmostApplication
+        // The mini shelf opens at the text cursor, read while the target app still has
+        // focus; without one it opens at the pointer.
+        let caret = mode == .mini ? CaretLocator.caretRect() : nil
+        let pointer = NSEvent.mouseLocation
+        let anchorPoint = caret.map { CGPoint(x: $0.minX, y: $0.midY) } ?? pointer
         guard let screen = NSScreen.screens.first(where: {
-            NSMouseInRect(NSEvent.mouseLocation, $0.frame, false)
+            NSMouseInRect(anchorPoint, $0.frame, false)
         }) ?? NSScreen.main else { return }
 
+        self.mode = mode
         let frame = ShelfLayout.frame(visibleFrame: screen.visibleFrame, height: currentShelfHeight, floating: floatingShelf)
         let panel = self.panel ?? makePanel()
         self.panel = panel
@@ -270,7 +292,28 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
 
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         setShelfContentOffset(0, in: panel)
-        if floatingShelf {
+        if mode == .mini {
+            let anchor = caret ?? CGRect(origin: pointer, size: .zero)
+            let placement = MiniShelfLayout.placement(size: miniShelfSize, anchor: anchor,
+                                                      visibleFrame: screen.visibleFrame)
+            miniAnchor = anchor
+            miniOpensBelow = placement.opensBelow
+            // Pops out of the cursor: fades in while moving a few points away from it.
+            // Like the floating shelf, it doesn't activate Copy, so the app being typed in
+            // keeps its active look.
+            panel.setFrame(placement.frame, display: false)
+            panel.alphaValue = reduceMotion ? 1 : 0
+            setShelfContentOffset(reduceMotion ? 0 : miniTravelTowardAnchor, in: panel)
+            panel.makeKeyAndOrderFront(nil)
+            if !reduceMotion {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.16
+                    context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                    panel.animator().alphaValue = 1
+                    shelfContentView(in: panel)?.animator().setFrameOrigin(.zero)
+                }
+            }
+        } else if floatingShelf {
             // Keep the window on its display: only its clipped content slides, so it
             // cannot leak onto another monitor placed below this one.
             panel.setFrame(frame, display: false)
@@ -341,7 +384,8 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
             // Accelerating, with no ease at the end: the shelf leaves, it doesn't settle.
             context.timingFunction = CAMediaTimingFunction(controlPoints: 0.4, 0, 1, 1)
             panel.animator().alphaValue = 0
-            shelfContentView(in: panel)?.animator().setFrameOrigin(NSPoint(x: 0, y: -Self.closeDrop))
+            let drop = mode == .mini ? miniTravelTowardAnchor : -Self.closeDrop
+            shelfContentView(in: panel)?.animator().setFrameOrigin(NSPoint(x: 0, y: drop))
         } completionHandler: { [weak self] in
             // NSAnimationContext runs its completion on the main thread; the closure's
             // `@Sendable` type just can't see that statically.
@@ -373,6 +417,12 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
     }
 
     // MARK: - Private
+
+    /// The content offset that moves the mini shelf toward its anchor: down when it sits
+    /// above the cursor, up when below.
+    private var miniTravelTowardAnchor: CGFloat {
+        miniOpensBelow ? Self.miniTravel : -Self.miniTravel
+    }
 
     private func shelfContentView(in panel: KeyablePanel) -> NSView? {
         (panel.contentView as? ShelfClippingView)?.shelfContent

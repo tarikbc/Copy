@@ -21,17 +21,25 @@ struct PinboardTabFramesKey: PreferenceKey {
 }
 
 /// Maps a point in the shelf's top-left coordinate space (`"shelfRoot"`, which is also the
-/// hosting view's) to the pinboard tab under it, using the frames each tab publishes.
+/// hosting view's) to the pinboard tab under it, using the frames each tab publishes. The
+/// full shelf lays its tabs out in a row; the mini shelf in a column (`vertical`).
 enum PinboardTabHitTest {
-    static func pinboard(at point: CGPoint, in frames: [Int64: CGRect]) -> Int64? {
+    static func pinboard(at point: CGPoint, in frames: [Int64: CGRect], vertical: Bool = false) -> Int64? {
         guard !frames.isEmpty else { return nil }
         // Exact hit first (cursor squarely inside a pill).
         if let hit = frames.first(where: { $0.value.contains(point) })?.key { return hit }
-        // Otherwise resolve by column, not by an inflated rectangle: the pills are only ~24pt
-        // tall and sit in a single row, so matching a raw point against thin, near-touching
-        // frames misses at edges and picks arbitrarily where inflated frames overlap. Instead,
-        // accept any drop within the tab-row's vertical band and map it to the tab whose X
-        // range holds the cursor — or the nearest tab center when between columns.
+        // A column is a row turned on its side: swap the axes and resolve it the same way.
+        guard vertical else { return nearest(to: point, in: frames) }
+        let swapped = frames.mapValues { CGRect(x: $0.minY, y: $0.minX, width: $0.height, height: $0.width) }
+        return nearest(to: CGPoint(x: point.y, y: point.x), in: swapped)
+    }
+
+    /// Resolves by column, not by an inflated rectangle: the pills are only ~24pt tall and
+    /// sit in a single row, so matching a raw point against thin, near-touching frames misses
+    /// at edges and picks arbitrarily where inflated frames overlap. Instead, accept any drop
+    /// within the tab-row's vertical band and map it to the tab whose X range holds the
+    /// cursor — or the nearest tab center when between columns.
+    private static func nearest(to point: CGPoint, in frames: [Int64: CGRect]) -> Int64? {
         let rowTop = frames.values.map(\.minY).min() ?? 0
         let rowBottom = frames.values.map(\.maxY).max() ?? 0
         guard point.y >= rowTop - 14, point.y <= rowBottom + 14 else { return nil }
@@ -81,11 +89,13 @@ struct PinboardDropCallout: Equatable {
 /// card will land in (the tab alone is small, and the drag chip sits on top of it), then
 /// briefly confirms the drop. It glides from tab to tab as the
 /// drag moves along the row. Laid over the whole shelf in the `"shelfRoot"` space, where
-/// the tab frames are measured, so it can hang below the header over the cards.
+/// the tab frames are measured, so it can hang below the header over the cards. In the
+/// mini shelf's pinboard column (`vertical`) it pops out to the side of the tab instead.
 struct PinboardDropCalloutLayer: View {
     let callout: PinboardDropCallout?
     let pinboards: [Pinboard]
     let tabFrames: [Int64: CGRect]
+    var vertical: Bool = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -94,16 +104,26 @@ struct PinboardDropCalloutLayer: View {
             if let callout,
                let pinboard = pinboards.first(where: { $0.id == callout.pinboardID }),
                let tab = tabFrames[callout.pinboardID] {
-                PinboardDropCalloutView(callout: callout, pinboard: pinboard,
-                                        arrowX: tab.width / 2 + Self.leadingInset)
-                    // Positioned by alignment guides, not `.offset`, so the view's real frame
-                    // sits under the tab: the pop-out transition then scales from the tab,
-                    // and moving to another tab animates as a layout change.
-                    .alignmentGuide(.leading) { _ in -(tab.minX - Self.leadingInset) }
-                    .alignmentGuide(.top) { _ in -(tab.maxY + 3) }
-                    .transition(reduceMotion
-                        ? .opacity
-                        : .scale(scale: 0.35, anchor: UnitPoint(x: 0.12, y: 0)).combined(with: .opacity))
+                // Positioned by alignment guides, not `.offset`, so the view's real frame
+                // sits beside the tab: the pop-out transition then scales from the tab,
+                // and moving to another tab animates as a layout change.
+                if vertical {
+                    PinboardDropCalloutView(callout: callout, pinboard: pinboard, arrowEdge: .leading,
+                                            arrowOffset: nil)
+                        .alignmentGuide(.leading) { _ in -(tab.maxX + 3) }
+                        .alignmentGuide(.top) { d in -(tab.midY - d.height / 2) }
+                        .transition(reduceMotion
+                            ? .opacity
+                            : .scale(scale: 0.35, anchor: .leading).combined(with: .opacity))
+                } else {
+                    PinboardDropCalloutView(callout: callout, pinboard: pinboard, arrowEdge: .top,
+                                            arrowOffset: tab.width / 2 + Self.leadingInset)
+                        .alignmentGuide(.leading) { _ in -(tab.minX - Self.leadingInset) }
+                        .alignmentGuide(.top) { _ in -(tab.maxY + 3) }
+                        .transition(reduceMotion
+                            ? .opacity
+                            : .scale(scale: 0.35, anchor: UnitPoint(x: 0.12, y: 0)).combined(with: .opacity))
+                }
             }
         }
         .allowsHitTesting(false)
@@ -119,8 +139,10 @@ struct PinboardDropCalloutLayer: View {
 private struct PinboardDropCalloutView: View {
     let callout: PinboardDropCallout
     let pinboard: Pinboard
-    /// The arrow's x position, from the callout's leading edge.
-    let arrowX: CGFloat
+    /// The edge the arrow points out of, toward the tab.
+    let arrowEdge: CalloutShape.ArrowEdge
+    /// The arrow's position along that edge, from its start; nil centers it.
+    let arrowOffset: CGFloat?
 
     private var boardColor: Color {
         pinboard.tint.isEmpty ? .accentColor : Tokens.color(fromHex: pinboard.tint)
@@ -154,12 +176,12 @@ private struct PinboardDropCalloutView: View {
         .padding(.leading, 8)
         .padding(.trailing, 12)
         .padding(.vertical, 6)
-        .padding(.top, CalloutShape.arrowHeight)
+        .padding(arrowEdge == .top ? .top : .leading, CalloutShape.arrowHeight)
         .fixedSize()
         // Plain system material with a hairline, like a native popover: the board's color
         // lives only in the badge, the same small dose of it the tab itself carries.
         .background {
-            let shape = CalloutShape(arrowX: arrowX)
+            let shape = CalloutShape(arrowEdge: arrowEdge, arrowOffset: arrowOffset)
             shape.fill(.regularMaterial)
             shape.stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
         }
@@ -188,30 +210,45 @@ private struct PinboardDropCalloutView: View {
     }
 }
 
-/// A rounded bubble with a small arrow on top, pointing up at the tab.
-private struct CalloutShape: Shape {
+/// A rounded bubble with a small arrow pointing at the tab: on top for the full shelf's
+/// tab row, on the leading side for the mini shelf's column.
+struct CalloutShape: Shape {
+    enum ArrowEdge { case top, leading }
+
     static let arrowHeight: CGFloat = 6
     private static let arrowWidth: CGFloat = 14
     private static let cornerRadius: CGFloat = 10
 
-    var arrowX: CGFloat
+    var arrowEdge: ArrowEdge
+    /// Along the arrow's edge, from its start; nil centers it.
+    var arrowOffset: CGFloat?
 
     var animatableData: CGFloat {
-        get { arrowX }
-        set { arrowX = newValue }
+        get { arrowOffset ?? 0 }
+        set { if arrowOffset != nil { arrowOffset = newValue } }
     }
 
     func path(in rect: CGRect) -> Path {
-        let body = CGRect(x: rect.minX, y: rect.minY + Self.arrowHeight,
-                          width: rect.width, height: rect.height - Self.arrowHeight)
+        let inset = Self.arrowHeight
+        let body = arrowEdge == .top
+            ? CGRect(x: rect.minX, y: rect.minY + inset, width: rect.width, height: rect.height - inset)
+            : CGRect(x: rect.minX + inset, y: rect.minY, width: rect.width - inset, height: rect.height)
         let bubble = Path(roundedRect: body, cornerRadius: Self.cornerRadius, style: .continuous)
         let halfWidth = Self.arrowWidth / 2
-        let x = min(max(rect.minX + arrowX, body.minX + Self.cornerRadius + halfWidth),
-                    body.maxX - Self.cornerRadius - halfWidth)
+        let margin = Self.cornerRadius + halfWidth
         var arrow = Path()
-        arrow.move(to: CGPoint(x: x - halfWidth, y: body.minY + 1))
-        arrow.addQuadCurve(to: CGPoint(x: x, y: rect.minY), control: CGPoint(x: x - 2, y: body.minY))
-        arrow.addQuadCurve(to: CGPoint(x: x + halfWidth, y: body.minY + 1), control: CGPoint(x: x + 2, y: body.minY))
+        switch arrowEdge {
+        case .top:
+            let x = min(max(rect.minX + (arrowOffset ?? rect.width / 2), body.minX + margin), body.maxX - margin)
+            arrow.move(to: CGPoint(x: x - halfWidth, y: body.minY + 1))
+            arrow.addQuadCurve(to: CGPoint(x: x, y: rect.minY), control: CGPoint(x: x - 2, y: body.minY))
+            arrow.addQuadCurve(to: CGPoint(x: x + halfWidth, y: body.minY + 1), control: CGPoint(x: x + 2, y: body.minY))
+        case .leading:
+            let y = min(max(rect.minY + (arrowOffset ?? rect.height / 2), body.minY + margin), body.maxY - margin)
+            arrow.move(to: CGPoint(x: body.minX + 1, y: y - halfWidth))
+            arrow.addQuadCurve(to: CGPoint(x: rect.minX, y: y), control: CGPoint(x: body.minX, y: y - 2))
+            arrow.addQuadCurve(to: CGPoint(x: body.minX + 1, y: y + halfWidth), control: CGPoint(x: body.minX, y: y + 2))
+        }
         arrow.closeSubpath()
         return bubble.union(arrow)
     }

@@ -221,106 +221,24 @@ struct ItemCardView: View {
         // never animates content changes; skipped under Reduce Motion.
         .animation(reduceMotion ? nil : .spring(response: 0.26, dampingFraction: 0.72), value: isSelected)
         .contextMenu {
-            if canShowInHistory {
-                Button("Show in History", action: onShowInHistory)
-                    .keyboardShortcut("g", modifiers: .command)
-                Divider()
-            }
-            Button("Paste", action: onPaste)
-            Button("Paste as Plain Text", action: onPastePlain)
-            if item.kind == .link || item.kind == .file {
-                Button("Open", action: onOpen)
-                    .keyboardShortcut("o", modifiers: .command)
-            }
-            if item.recognizedText?.isEmpty == false {
-                Button("Copy Text", action: onCopyText)
-            }
-            if item.kind == .file, !quickLookURLs.isEmpty {
-                Button("Quick Look", action: onQuickLook)
-            }
-            if item.kind == .image {
-                Button("Rotate Left") { onRotate(false) }
-                Button("Rotate Right") { onRotate(true) }
-            }
-            Divider()
-            if isEditable {
-                Button("Edit…", action: onEdit)
-                    .keyboardShortcut("e", modifiers: .command)
-            } else if item.kind == .color {
-                Button("Adjust Color…", action: onAdjustColor)
-            }
-            Button("Rename…", action: onBeginInlineRename)
-            if favoritesEnabled {
-                Button(item.isFavorite ? "Unfavorite" : "Favorite", action: onToggleFavorite)
-            }
-            Menu("Add to Pinboard") {
-                if pinboards.isEmpty {
-                    Text("No Pinboards")
-                } else {
-                    ForEach(pinboards, id: \.id) { pinboard in
-                        Button {
-                            if let id = pinboard.id { onAddToPinboard(id) }
-                        } label: {
-                            Label(pinboard.name, systemImage: pinboard.symbol)
-                        }
-                    }
-                }
-            }
-            Button("Add to Paste Stack", action: onAddToPasteStack)
-            if isEditable, item.plainText?.isEmpty == false {
-                Button("Split into Paste Stack…", action: onSplitToPasteStack)
-            }
-            if currentPinboardID != nil {
-                Button("Remove from Pinboard", action: onRemoveFromPinboard)
-            }
-            Divider()
-            Button("Delete", role: .destructive, action: onDelete)
+            CardContextMenu(
+                item: item, pinboards: pinboards, currentPinboardID: currentPinboardID,
+                favoritesEnabled: favoritesEnabled, canShowInHistory: canShowInHistory,
+                hasQuickLook: item.kind == .file && !quickLookURLs.isEmpty,
+                onPaste: onPaste, onPastePlain: onPastePlain, onEdit: onEdit, onAdjustColor: onAdjustColor,
+                onRename: onBeginInlineRename, onToggleFavorite: onToggleFavorite,
+                onAddToPinboard: onAddToPinboard, onRemoveFromPinboard: onRemoveFromPinboard,
+                onAddToPasteStack: onAddToPasteStack, onSplitToPasteStack: onSplitToPasteStack,
+                onCopyText: onCopyText, onQuickLook: onQuickLook, onOpen: onOpen,
+                onShowInHistory: onShowInHistory, onRotate: onRotate, onDelete: onDelete)
         }
         .onDrag(dragProvider) { dragPreview }
         .modifier(CardClickGesture(onClick: onClick))
     }
 
-    /// A small chip shown under the cursor while dragging, instead of SwiftUI's default
-    /// full-size snapshot of the card. The full card covered the little pinboard tabs,
-    /// making it impossible to tell which one you were about to drop onto; this keeps the
-    /// tabs (and their drop highlight) visible.
+    /// A small chip shown under the cursor while dragging (see `CardDragPreview`).
     private var dragPreview: some View {
-        HStack(spacing: 6) {
-            dragPreviewGlyph
-            Text(item.displayTitle(hidingSecrets: masksSecrets))
-                .font(.system(size: 12, weight: .medium))
-                .lineLimit(1)
-                .truncationMode(.tail)
-            if dragBadgeCount > 1 {
-                Text("+\(dragBadgeCount - 1)")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.accentColor))
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .frame(maxWidth: 240)
-        .background(Capsule().fill(Color(nsColor: .windowBackgroundColor)))
-        .overlay(Capsule().stroke(Color.primary.opacity(0.15), lineWidth: 1))
-    }
-
-    @ViewBuilder private var dragPreviewGlyph: some View {
-        Group {
-            if item.kind == .image {
-                Image(systemName: "photo").foregroundStyle(.secondary)
-            } else if item.kind == .color {
-                Circle().fill(Tokens.color(fromHex: item.plainText ?? ""))
-            } else if let icon = AppIconCache.icon(forBundleID: item.appBundleID) {
-                Image(nsImage: icon).resizable()
-            } else {
-                Image(systemName: "doc.on.clipboard").foregroundStyle(.secondary)
-            }
-        }
-        .font(.system(size: 13))
-        .frame(width: 16, height: 16)
+        CardDragPreview(item: item, masksSecrets: masksSecrets, badgeCount: dragBadgeCount)
     }
 
     private var header: some View {
@@ -544,6 +462,146 @@ struct ItemCardView: View {
     }
 }
 
+/// A card's right-click menu, shared by the full shelf's cards and the mini shelf's rows.
+struct CardContextMenu: View {
+    let item: ClipItem
+    let pinboards: [Pinboard]
+    let currentPinboardID: Int64?
+    let favoritesEnabled: Bool
+    let canShowInHistory: Bool
+    let hasQuickLook: Bool
+    let onPaste: () -> Void
+    let onPastePlain: () -> Void
+    let onEdit: () -> Void
+    let onAdjustColor: () -> Void
+    let onRename: () -> Void
+    let onToggleFavorite: () -> Void
+    let onAddToPinboard: (Int64) -> Void
+    let onRemoveFromPinboard: () -> Void
+    let onAddToPasteStack: () -> Void
+    let onSplitToPasteStack: () -> Void
+    let onCopyText: () -> Void
+    let onQuickLook: () -> Void
+    let onOpen: () -> Void
+    let onShowInHistory: () -> Void
+    let onRotate: (Bool) -> Void
+    let onDelete: () -> Void
+
+    private var isEditable: Bool {
+        switch item.kind {
+        case .text, .richText, .link: return true
+        case .image, .file, .color: return false
+        }
+    }
+
+    var body: some View {
+        if canShowInHistory {
+            Button("Show in History", action: onShowInHistory)
+                .keyboardShortcut("g", modifiers: .command)
+            Divider()
+        }
+        Button("Paste", action: onPaste)
+        Button("Paste as Plain Text", action: onPastePlain)
+        if item.kind == .link || item.kind == .file {
+            Button("Open", action: onOpen)
+                .keyboardShortcut("o", modifiers: .command)
+        }
+        if item.recognizedText?.isEmpty == false {
+            Button("Copy Text", action: onCopyText)
+        }
+        if hasQuickLook {
+            Button("Quick Look", action: onQuickLook)
+        }
+        if item.kind == .image {
+            Button("Rotate Left") { onRotate(false) }
+            Button("Rotate Right") { onRotate(true) }
+        }
+        Divider()
+        if isEditable {
+            Button("Edit…", action: onEdit)
+                .keyboardShortcut("e", modifiers: .command)
+        } else if item.kind == .color {
+            Button("Adjust Color…", action: onAdjustColor)
+        }
+        Button("Rename…", action: onRename)
+        if favoritesEnabled {
+            Button(item.isFavorite ? "Unfavorite" : "Favorite", action: onToggleFavorite)
+        }
+        Menu("Add to Pinboard") {
+            if pinboards.isEmpty {
+                Text("No Pinboards")
+            } else {
+                ForEach(pinboards, id: \.id) { pinboard in
+                    Button {
+                        if let id = pinboard.id { onAddToPinboard(id) }
+                    } label: {
+                        Label(pinboard.name, systemImage: pinboard.symbol)
+                    }
+                }
+            }
+        }
+        Button("Add to Paste Stack", action: onAddToPasteStack)
+        if isEditable, item.plainText?.isEmpty == false {
+            Button("Split into Paste Stack…", action: onSplitToPasteStack)
+        }
+        if currentPinboardID != nil {
+            Button("Remove from Pinboard", action: onRemoveFromPinboard)
+        }
+        Divider()
+        Button("Delete", role: .destructive, action: onDelete)
+    }
+}
+
+/// A small chip shown under the cursor while dragging a card, instead of SwiftUI's default
+/// full-size snapshot of it. The full card covered the little pinboard tabs, making it
+/// impossible to tell which one you were about to drop onto; this keeps the tabs (and
+/// their drop highlight) visible.
+struct CardDragPreview: View {
+    let item: ClipItem
+    let masksSecrets: Bool
+    /// How many cards the drag carries; more than one shows a "+N" badge.
+    var badgeCount: Int = 1
+
+    var body: some View {
+        HStack(spacing: 6) {
+            glyph
+            Text(item.displayTitle(hidingSecrets: masksSecrets))
+                .font(.system(size: 12, weight: .medium))
+                .lineLimit(1)
+                .truncationMode(.tail)
+            if badgeCount > 1 {
+                Text("+\(badgeCount - 1)")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.accentColor))
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(maxWidth: 240)
+        .background(Capsule().fill(Color(nsColor: .windowBackgroundColor)))
+        .overlay(Capsule().stroke(Color.primary.opacity(0.15), lineWidth: 1))
+    }
+
+    @ViewBuilder private var glyph: some View {
+        Group {
+            if item.kind == .image {
+                Image(systemName: "photo").foregroundStyle(.secondary)
+            } else if item.kind == .color {
+                Circle().fill(Tokens.color(fromHex: item.plainText ?? ""))
+            } else if let icon = AppIconCache.icon(forBundleID: item.appBundleID) {
+                Image(nsImage: icon).resizable()
+            } else {
+                Image(systemName: "doc.on.clipboard").foregroundStyle(.secondary)
+            }
+        }
+        .font(.system(size: 13))
+        .frame(width: 16, height: 16)
+    }
+}
+
 struct LinkFaviconView: View {
     let item: ClipItem
     let store: ItemStore
@@ -586,7 +644,7 @@ struct LinkFaviconView: View {
 /// card is being renamed (`ItemCardView.isInlineRenaming`). Enter commits, Escape
 /// reverts without saving, and losing focus (clicking away) commits — the field
 /// is auto-focused on appear so typing can start immediately.
-private struct InlineTitleField: View {
+struct InlineTitleField: View {
     let initialText: String
     let onCommit: (String) -> Void
     let onCancel: () -> Void
@@ -665,7 +723,7 @@ private struct InlineTitleField: View {
 /// Double-click-to-paste is instead handled without a timed gesture: the first click
 /// selects, and a click on the already-sole-selected card pastes (see
 /// `ShelfViewModel.handleCardClick`), so a fast double-click still pastes with no delay.
-private struct CardClickGesture: ViewModifier {
+struct CardClickGesture: ViewModifier {
     let onClick: (NSEvent.ModifierFlags) -> Void
 
     func body(content: Content) -> some View {
