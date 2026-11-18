@@ -22,11 +22,32 @@ struct GeneralSettings: View {
     var body: some View {
         Form {
             Section {
+                Picker("Shelf Layout", selection: $settings.shelfMode) {
+                    ForEach(ShelfMode.allCases) { mode in Text(mode.title).tag(mode) }
+                }
+                .pickerStyle(.segmented)
+                Picker("Mini Shelf Size", selection: $settings.miniShelfSize) {
+                    ForEach(MiniShelfSize.allCases) { size in Text(size.title).tag(size) }
+                }
+                .pickerStyle(.segmented)
+                // Only applies while the layout is Mini.
+                .disabled(settings.shelfMode == .full)
+            } footer: {
+                Text(settings.shelfMode == .full
+                     ? "Open Copy shows the full shelf along the bottom of the screen. Set a shortcut for the mini shelf in Shortcuts."
+                     : "Open Copy shows the mini shelf above the text cursor, or at the pointer when the app doesn't report one. Set a shortcut for the full shelf in Shortcuts.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 Picker("Shelf Size", selection: $settings.compactShelf) {
                     Text("Standard").tag(false)
                     Text("Compact").tag(true)
                 }
                 .pickerStyle(.segmented)
+                // Only applies while the layout is Full.
+                .disabled(settings.shelfMode == .mini)
             } footer: {
                 Text("Compact shows smaller cards so more fit in the shelf at once.")
                     .font(.footnote)
@@ -39,6 +60,8 @@ struct GeneralSettings: View {
                     Text("Floating").tag(true)
                 }
                 .pickerStyle(.segmented)
+                // Only applies while the layout is Full.
+                .disabled(settings.shelfMode == .mini)
             } footer: {
                 Text("Floating adds space around the shelf and rounds every corner.")
                     .font(.footnote)

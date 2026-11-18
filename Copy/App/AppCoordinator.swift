@@ -54,7 +54,8 @@ final class AppCoordinator {
             hideDuringScreenSharing: settings.hideDuringScreenSharing,
             compactShelf: settings.compactShelf,
             theme: settings.shelfTheme,
-            floatingShelf: settings.floatingShelf) { [weak self] in
+            floatingShelf: settings.floatingShelf,
+            miniShelfSize: settings.miniShelfSize.size) { [weak self] in
             guard let self else { return NSView() }
             let host = ShelfHostingView(rootView: ShelfRootView(viewModel: self.shelfViewModel))
             // Drags onto the pinboard tabs (cards to file, tabs to reorder) are tracked by
@@ -96,6 +97,8 @@ final class AppCoordinator {
                event.modifierFlags.intersection([.command, .option, .control]).isEmpty,
                let chars = event.charactersIgnoringModifiers, chars.count == 1,
                let first = chars.first, first.isLetter {
+                // The mini shelf searches only once its lens button opens the field.
+                if viewModel.isMiniShelf && !viewModel.miniSearchShown { return true }
                 viewModel.updateSearchText(viewModel.searchQuery.text + (event.characters ?? chars))
                 viewModel.focusSearchRequested = true
                 return true
@@ -124,6 +127,8 @@ final class AppCoordinator {
                (1...9).contains(digitValue) {
                 if digitValue == 1 {
                     viewModel.selectTab(.history)
+                } else if viewModel.isMiniShelf && !viewModel.miniShowsPinboards {
+                    // No pinboard column showing, so no board to switch to.
                 } else {
                     let index = digitValue - 2
                     if viewModel.pinboards.indices.contains(index), let id = viewModel.pinboards[index].id {
@@ -148,15 +153,25 @@ final class AppCoordinator {
             // never falls through to the plain ⌘V paste action below.
             let shortcutModifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
             switch event.keyCode {
-            case 123: // left arrow
+            // The mini shelf lists its items top to bottom; its left/right arrows stay with
+            // the search field.
+            case 125 where viewModel.isMiniShelf: // down arrow
+                viewModel.moveSelection(1)
+                return true
+            case 126 where viewModel.isMiniShelf: // up arrow
                 viewModel.moveSelection(-1)
                 return true
-            case 124: // right arrow
+            case 123 where !viewModel.isMiniShelf: // left arrow
+                viewModel.moveSelection(-1)
+                return true
+            case 124 where !viewModel.isMiniShelf: // right arrow
                 viewModel.moveSelection(1)
                 return true
             case 53: // escape
                 if viewModel.previewShown {
                     viewModel.previewShown = false
+                } else if viewModel.miniSearchShown {
+                    viewModel.closeMiniSearch()
                 } else if !viewModel.searchQuery.isEmpty {
                     viewModel.clearSearch()
                 } else {
@@ -468,6 +483,9 @@ final class AppCoordinator {
         settings.onCompactShelfChange = { [weak self] compact in
             self?.shelfController.setCompactShelf(compact)
         }
+        settings.onMiniShelfSizeChange = { [weak self] size in
+            self?.shelfController.setMiniShelfSize(size.size)
+        }
         settings.onShelfThemeChange = { [weak self] theme in
             self?.shelfController.setTheme(theme)
             self?.pasteStackController.setTheme(theme)
@@ -626,19 +644,26 @@ final class AppCoordinator {
     /// `shelfViewModel`/`shelfController` are both created once and reused for the
     /// app's lifetime, so without this the permission banner would only ever reflect
     /// whatever was true the very first time the shelf ever appeared.
-    func toggleShelf() {
-        if !shelfController.isVisible {
-            shelfViewModel.refreshPermissionState()
+    /// `mode` nil opens the one chosen in Settings (`SettingsStore.shelfMode`).
+    func toggleShelf(mode: ShelfMode? = nil) {
+        if shelfController.isVisible {
+            shelfController.hide(restoreFocus: true)
+        } else {
+            showShelf(mode: mode ?? settings.shelfMode)
         }
-        shelfController.toggle()
+    }
+
+    private func showShelf(mode: ShelfMode) {
+        shelfViewModel.refreshPermissionState()
+        shelfViewModel.prepareToShow(mini: mode == .mini)
+        shelfController.show(mode: mode)
     }
 
     /// Opens the shelf (if not already open) and immediately shows `CreateItemSheet`,
     /// for the status menu's "New Item…" action.
     func newItem() {
         if !shelfController.isVisible {
-            shelfViewModel.refreshPermissionState()
-            shelfController.show()
+            showShelf(mode: settings.shelfMode)
         }
         shelfViewModel.beginCreate()
     }
@@ -671,8 +696,7 @@ final class AppCoordinator {
     /// the user presses the hotkey again to actually advance once the shelf is visible.
     func selectNextPinboard() {
         guard shelfController.isVisible else {
-            shelfViewModel.refreshPermissionState()
-            shelfController.show()
+            showShelf(mode: settings.shelfMode)
             return
         }
         let pinboards = shelfViewModel.pinboards

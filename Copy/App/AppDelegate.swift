@@ -6,6 +6,9 @@ import Sparkle
 
 extension KeyboardShortcuts.Name {
     static let toggleShelf = Self("toggleShelf", initial: .init(.v, modifiers: [.command, .shift]))
+    /// No default shortcut — the user opts in from Settings. Opens whichever shelf
+    /// `toggleShelf` doesn't (`SettingsStore.shelfMode`), so both stay a keystroke away.
+    static let toggleAlternateShelf = Self("toggleAlternateShelf")
     static let togglePasteStack = Self("togglePasteStack", initial: .init(.c, modifiers: [.command, .shift]))
     static let pasteNextFromStack = Self("pasteNextFromStack", initial: .init(.n, modifiers: [.control, .option, .command]))
     /// No default shortcut — the user opts in from Settings. Pastes the most recent
@@ -160,6 +163,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         KeyboardShortcuts.onKeyDown(for: .toggleShelf) { [weak self] in
             self?.coordinator.toggleShelf()
+        }
+        KeyboardShortcuts.onKeyDown(for: .toggleAlternateShelf) { [weak self] in
+            guard let coordinator = self?.coordinator else { return }
+            coordinator.toggleShelf(mode: coordinator.settings.shelfMode.other)
         }
         KeyboardShortcuts.onKeyDown(for: .togglePasteStack) { [weak self] in
             self?.coordinator.togglePasteStack()

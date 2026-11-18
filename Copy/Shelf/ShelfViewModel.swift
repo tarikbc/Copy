@@ -77,6 +77,21 @@ final class ShelfViewModel {
         tab = newTab
     }
     var pinboards: [Pinboard] = []
+    /// Whether the shelf is showing as the mini shelf (`MiniShelfView`) rather than the
+    /// full one. Set by `AppCoordinator` before each open.
+    var isMiniShelf = false
+    /// The mini shelf's search field, opened from its lens button. Cleared when it closes.
+    var miniSearchShown = false
+    /// Whether the mini shelf shows its pinboard column. Toggled from the shelf itself and
+    /// remembered across launches; hiding it returns to History, so the list is never
+    /// filtered by a board that isn't on screen.
+    var miniShowsPinboards = UserDefaults.standard.bool(forKey: ShelfViewModel.miniShowsPinboardsKey) {
+        didSet {
+            UserDefaults.standard.set(miniShowsPinboards, forKey: Self.miniShowsPinboardsKey)
+            if !miniShowsPinboards, tab != .history { selectTab(.history) }
+        }
+    }
+    static let miniShowsPinboardsKey = "miniShelfShowsPinboards"
     var selection = ShelfSelection()
     /// The drag-select in the card row: its rectangle and which cards it touches. The
     /// selection it produces is applied in `updateCardSweep`.
@@ -361,6 +376,23 @@ final class ShelfViewModel {
         refresh()
     }
 
+    /// The mini shelf's lens button: opens its search field focused, or closes it.
+    func toggleMiniSearch() {
+        if miniSearchShown {
+            closeMiniSearch()
+        } else {
+            miniSearchShown = true
+            // Next turn, once the field is in the window and can take focus.
+            DispatchQueue.main.async { [weak self] in self?.focusSearchRequested = true }
+        }
+    }
+
+    /// Closing the mini shelf's search field also drops its search.
+    func closeMiniSearch() {
+        miniSearchShown = false
+        if !searchQuery.isEmpty { clearSearch() }
+    }
+
     /// "Show in History": clears the search, switches to the History tab, and (once the
     /// observation delivers) selects the item so the existing scroll-to animation centers
     /// on it, with a brief flash. Only reaches items within the recent History window.
@@ -415,10 +447,17 @@ final class ShelfViewModel {
         cachedApps = []
         isSearchFieldFocused = false
         focusSearchRequested = false
+        miniSearchShown = false
         shelfDragEnded()
         dropCallout = nil
         cardSweep.end()
         endSearchEditingRequested = false
+    }
+
+    /// Called by `AppCoordinator` right before each open, with the shelf about to show.
+    func prepareToShow(mini: Bool) {
+        isMiniShelf = mini
+        if mini, !miniShowsPinboards, tab != .history { tab = .history }
     }
 
     /// Called by `AppCoordinator.toggleShelf()` right before showing the panel — see
@@ -897,7 +936,7 @@ final class ShelfViewModel {
     /// under it — the filing target for cards, the insertion edge for a dragged tab — and
     /// returns whether there is one, which decides whether the drop is accepted there.
     func shelfDragMoved(_ kind: ShelfDrag.Kind, to point: CGPoint) -> Bool {
-        let target = PinboardTabHitTest.pinboard(at: point, in: pinboardTabFrames)
+        let target = PinboardTabHitTest.pinboard(at: point, in: pinboardTabFrames, vertical: isMiniShelf)
         switch kind {
         case .cards:
             if dropTargetedPinboardID != target {
@@ -941,7 +980,7 @@ final class ShelfViewModel {
         shelfDragEnded()
         let uuids = payloadUUIDs ?? recorded
         guard !uuids.isEmpty,
-              let id = PinboardTabHitTest.pinboard(at: point, in: pinboardTabFrames),
+              let id = PinboardTabHitTest.pinboard(at: point, in: pinboardTabFrames, vertical: isMiniShelf),
               let pinboard = pinboards.first(where: { $0.id == id }) else {
             return false
         }
@@ -966,7 +1005,7 @@ final class ShelfViewModel {
         if case .pinboard(let id) = activeShelfDrag { recorded = id }
         shelfDragEnded()
         guard let sourceID = payloadID ?? recorded,
-              let targetID = PinboardTabHitTest.pinboard(at: point, in: pinboardTabFrames) else {
+              let targetID = PinboardTabHitTest.pinboard(at: point, in: pinboardTabFrames, vertical: isMiniShelf) else {
             return false
         }
         if sourceID != targetID {
